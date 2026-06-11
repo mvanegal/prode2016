@@ -66,6 +66,10 @@ tr:hover td{background:#FAFAF7}
 .spin{display:inline-block;width:16px;height:16px;border:2px solid #eee;border-top-color:#999;border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .loading{text-align:center;padding:60px 20px;color:#aaa;font-size:14px}
+.part-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #F5F5F0;flex-wrap:wrap}
+.part-row:last-child{border-bottom:none}
+.part-name{flex:1;font-size:13px;font-weight:500}
+.pin-badge{font-size:11px;color:#888;background:#F5F5F0;padding:2px 8px;border-radius:10px}
 @media(max-width:480px){.md{display:none}.mt{min-width:100px}}
 </style>
 </head>
@@ -76,7 +80,7 @@ tr:hover td{background:#FAFAF7}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, onValue, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDRhyJsZ6GwiDLjXfSoeGdIAC5_ltGSZds",
@@ -133,29 +137,32 @@ const GS=[...new Set(MX.map(m=>m.g))].sort();
 const APASS="prode2026admin";
 const BPM=1000;
 
-let me=null, isAdm=false, parts=[], bets={}, res={}, pend={};
+// parts ahora es objeto: { "Nombre": { pin: "1234" }, ... }
+let me=null, isAdm=false, parts={}, bets={}, res={}, pend={};
 
-// Escucha cambios en tiempo real
-function listenData(callback) {
-  onValue(ref(db,'prode'), snap => {
-    const d = snap.val() || {};
-    parts = d.parts || [];
-    bets  = d.bets  || {};
-    res   = d.res   || {};
-    callback();
+function listenData(cb){
+  onValue(ref(db,'prode'), snap=>{
+    const d=snap.val()||{};
+    parts=d.parts||{};
+    bets=d.bets||{};
+    res=d.res||{};
+    cb();
   });
 }
 
-const svP = () => set(ref(db,'prode/parts'), parts);
-const svB = () => set(ref(db,'prode/bets'),  bets);
-const svR = () => set(ref(db,'prode/res'),   res);
+const svP=()=>set(ref(db,'prode/parts'),parts);
+const svB=()=>set(ref(db,'prode/bets'),bets);
+const svR=()=>set(ref(db,'prode/res'),res);
+
+function partNames(){return Object.keys(parts);}
 
 function calcPot(){
   let t=0;
+  const names=partNames();
   MX.forEach(m=>{
-    const r=res[m.id]; if(!r) return;
-    const w=parts.filter(p=>bets[p]&&bets[p][m.id]&&bets[p][m.id].h===r.h&&bets[p][m.id].a===r.a);
-    if(!w.length) t+=parts.length*BPM;
+    const r=res[m.id];if(!r)return;
+    const w=names.filter(p=>bets[p]&&bets[p][m.id]&&bets[p][m.id].h===r.h&&bets[p][m.id].a===r.a);
+    if(!w.length)t+=names.length*BPM;
   });
   return t;
 }
@@ -164,13 +171,17 @@ function setHTML(id,h){const e=document.getElementById(id);if(e)e.innerHTML=h;}
 function showMsg(id,t,c){const e=document.getElementById(id);if(!e)return;e.textContent=t;e.className='msg '+(c||'');setTimeout(()=>{if(e)e.textContent='';},2500);}
 
 function showLogin(){
+  const names=partNames();
   document.getElementById('R').innerHTML=`
   <div class="hdr"><h1>⚽ Prode Mundial 2026</h1></div>
   <div class="login-wrap"><div class="login-box">
     <h2>Ingresar al prode</h2>
-    <p>Elegí tu nombre para cargar tus apuestas</p>
+    <p>Seleccioná tu nombre e ingresá tu PIN</p>
     <div class="fg"><label>Tu nombre</label>
-      <select id="lN"><option value="">— Seleccioná —</option>${parts.map(p=>`<option>${p}</option>`).join('')}</select>
+      <select id="lN"><option value="">— Seleccioná —</option>${names.map(p=>`<option>${p}</option>`).join('')}</select>
+    </div>
+    <div class="fg"><label>Tu PIN</label>
+      <input type="password" id="lPin" placeholder="PIN asignado por el admin" maxlength="10" onkeydown="if(event.key==='Enter')lgU()">
     </div>
     <button class="btn-p" style="width:100%;padding:9px" onclick="lgU()">Entrar</button>
     <div class="divider"><span>o</span></div>
@@ -182,8 +193,19 @@ function showLogin(){
   </div></div>`;
 }
 
-window.lgU=function(){const n=document.getElementById('lN').value;if(!n){document.getElementById('lE').textContent='Seleccioná tu nombre.';return;}me=n;isAdm=false;showApp();}
-window.lgA=function(){const p=document.getElementById('lP').value;if(p!==APASS){document.getElementById('lE').textContent='Contraseña incorrecta.';return;}me='Admin';isAdm=true;showApp();}
+window.lgU=function(){
+  const n=document.getElementById('lN').value;
+  const pin=document.getElementById('lPin').value;
+  if(!n){document.getElementById('lE').textContent='Seleccioná tu nombre.';return;}
+  if(!pin){document.getElementById('lE').textContent='Ingresá tu PIN.';return;}
+  if(!parts[n]||String(parts[n].pin)!==String(pin)){document.getElementById('lE').textContent='PIN incorrecto.';return;}
+  me=n;isAdm=false;showApp();
+}
+window.lgA=function(){
+  const p=document.getElementById('lP').value;
+  if(p!==APASS){document.getElementById('lE').textContent='Contraseña incorrecta.';return;}
+  me='Admin';isAdm=true;showApp();
+}
 window.lgOut=function(){me=null;isAdm=false;showLogin();}
 
 function showApp(){
@@ -206,68 +228,87 @@ function showApp(){
     ${isAdm?`<button class="tab" id="t-res" onclick="sw('res',this)">✅ Resultados</button>`:''}
   </div>
   <div id="PC"></div>`;
-  sw(isAdm?'adm':'bet', document.getElementById(isAdm?'t-adm':'t-bet'));
+  sw(isAdm?'adm':'bet',document.getElementById(isAdm?'t-adm':'t-bet'));
 }
 
 function refreshHeader(){
   const e=document.getElementById('potVal');
-  if(e) e.textContent='$'+calcPot().toLocaleString('es-AR');
+  if(e)e.textContent='$'+calcPot().toLocaleString('es-AR');
 }
 
 window.sw=function(panel,el){
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-  if(el) el.classList.add('active');
-  if(panel==='adm') pAdm();
-  else if(panel==='bet') pBet();
-  else if(panel==='tbl') pTbl();
-  else if(panel==='res') pRes();
+  if(el)el.classList.add('active');
+  if(panel==='adm')pAdm();
+  else if(panel==='bet')pBet();
+  else if(panel==='tbl')pTbl();
+  else if(panel==='res')pRes();
 }
 
-function pills(){
-  if(!parts.length) return'<span style="font-size:12px;color:#aaa">Sin participantes aún.</span>';
-  return parts.map(p=>`<span class="pill">${p}<span class="rm" onclick="rmP('${p.replace(/'/g,"\\'")}')">×</span></span>`).join('');
+function partList(){
+  const names=partNames();
+  if(!names.length)return'<span style="font-size:12px;color:#aaa">Sin participantes aún.</span>';
+  return`<div>${names.map(p=>`<div class="part-row">
+    <span class="part-name">${p}</span>
+    <span class="pin-badge">PIN: ${parts[p].pin}</span>
+    <button style="font-size:11px;padding:3px 8px;color:#c00" onclick="rmP('${p.replace(/'/g,"\\'")}')">✕</button>
+  </div>`).join('')}</div>`;
 }
 
 function pAdm(){
-  setHTML('PC',`<div class="card"><h2>Participantes (${parts.length})</h2>
-    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-      <input id="nN" type="text" placeholder="Nombre del participante" style="flex:1;min-width:140px" onkeydown="if(event.key==='Enter')addP()">
+  const names=partNames();
+  setHTML('PC',`<div class="card"><h2>Participantes (${names.length})</h2>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:flex-end">
+      <div><div style="font-size:11px;color:#666;margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Nombre</div>
+        <input id="nN" type="text" placeholder="Nombre" style="width:150px" onkeydown="if(event.key==='Enter')document.getElementById('nPin').focus()">
+      </div>
+      <div><div style="font-size:11px;color:#666;margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">PIN</div>
+        <input id="nPin" type="text" placeholder="ej: 1234" style="width:80px" maxlength="10" onkeydown="if(event.key==='Enter')addP()">
+      </div>
       <button class="btn-p" onclick="addP()">+ Agregar</button>
       <span class="msg" id="pMsg"></span>
     </div>
-    <div id="pList">${pills()}</div>
+    <div id="pList">${partList()}</div>
   </div>
   <div class="card"><div class="sg">
-    <div class="sc"><div class="sl">Participantes</div><div class="sv">${parts.length}</div></div>
+    <div class="sc"><div class="sl">Participantes</div><div class="sv">${names.length}</div></div>
     <div class="sc"><div class="sl">Resultados cargados</div><div class="sv">${Object.keys(res).length}/96</div></div>
     <div class="sc"><div class="sl">Partidos totales</div><div class="sv">96</div></div>
     <div class="sc"><div class="sl">Pozo acumulado</div><div class="sv" style="font-size:15px;color:#BA7517">$${calcPot().toLocaleString('es-AR')}</div></div>
-  </div></div>`);
+  </div>
+  <div style="font-size:12px;color:#888;margin-top:4px">💡 Cada participante necesita su nombre y PIN para entrar. Compartiles su PIN en privado.</div>
+  </div>`);
 }
 
 window.addP=async function(){
   const n=(document.getElementById('nN').value||'').trim();
-  if(!n) return;
-  if(parts.includes(n)){showMsg('pMsg','Ya existe.','er');return;}
-  parts.push(n);
+  const pin=(document.getElementById('nPin').value||'').trim();
+  if(!n){showMsg('pMsg','Falta el nombre.','er');return;}
+  if(!pin){showMsg('pMsg','Falta el PIN.','er');return;}
+  if(parts[n]){showMsg('pMsg','Ya existe.','er');return;}
+  parts[n]={pin};
   await svP();
   document.getElementById('nN').value='';
+  document.getElementById('nPin').value='';
+  setHTML('pList',partList());
   showMsg('pMsg','Guardado ✓','ok');
+  document.getElementById('nN').focus();
 }
 
 window.rmP=async function(n){
-  if(!confirm('¿Eliminar a '+n+'?')) return;
-  parts=parts.filter(p=>p!==n);
+  if(!confirm('¿Eliminar a '+n+'?'))return;
+  delete parts[n];
   delete bets[n];
-  await svP();
-  await svB();
+  await svP();await svB();
+  setHTML('pList',partList());
 }
 
 function getPlayer(){return isAdm?(document.getElementById('bP')||{}).value||'':me;}
 
 function pBet(){
+  const names=partNames();
   setHTML('PC',`<div class="card" style="margin-bottom:8px">
-    ${isAdm?`<div style="margin-bottom:8px"><select id="bP" onchange="rBL()" style="max-width:220px"><option value="">— Participante —</option>${parts.map(p=>`<option>${p}</option>`).join('')}</select></div>`:''}
+    ${isAdm?`<div style="margin-bottom:8px"><select id="bP" onchange="rBL()" style="max-width:220px"><option value="">— Participante —</option>${names.map(p=>`<option>${p}</option>`).join('')}</select></div>`:''}
     <div class="fr">
       <input type="text" id="bS" placeholder="Buscar equipo..." oninput="rBL()">
       <select id="bG" onchange="rBL()"><option value="">Todos los grupos</option>${GS.map(g=>`<option>Grupo ${g}</option>`).join('')}</select>
@@ -286,10 +327,10 @@ window.rBL=function(){
   const s=(document.getElementById('bS')||{}).value||'';
   const gf=(document.getElementById('bG')||{}).value||'';
   if(!pl){setHTML('bL','<div class="card"><div class="empty">Seleccioná un participante.</div></div>');return;}
-  if(!pend[pl]) pend[pl]={};
+  if(!pend[pl])pend[pl]={};
   const fx=MX.filter(m=>{
-    if(gf&&`Grupo ${m.g}`!==gf) return false;
-    if(s&&!m.h.toLowerCase().includes(s.toLowerCase())&&!m.a.toLowerCase().includes(s.toLowerCase())) return false;
+    if(gf&&`Grupo ${m.g}`!==gf)return false;
+    if(s&&!m.h.toLowerCase().includes(s.toLowerCase())&&!m.a.toLowerCase().includes(s.toLowerCase()))return false;
     return true;
   });
   const gs=[...new Set(fx.map(m=>m.g))].sort();
@@ -315,28 +356,27 @@ window.rBL=function(){
     });
     html+='</div>';
   });
-  setHTML('bL', html||'<div class="card"><div class="empty">No hay partidos.</div></div>');
+  setHTML('bL',html||'<div class="card"><div class="empty">No hay partidos.</div></div>');
 }
 
 window.sp=function(pl,mid,h,a){
-  if(!pend[pl]) pend[pl]={};
-  if(!pend[pl][mid]) pend[pl][mid]={h:'',a:''};
-  if(h!==null) pend[pl][mid].h=h;
-  if(a!==null) pend[pl][mid].a=a;
+  if(!pend[pl])pend[pl]={};
+  if(!pend[pl][mid])pend[pl][mid]={h:'',a:''};
+  if(h!==null)pend[pl][mid].h=h;
+  if(a!==null)pend[pl][mid].a=a;
 }
 
 window.svBets=async function(){
   const pl=getPlayer();
   if(!pl){showMsg('bMsg','Seleccioná un participante.','er');return;}
-  if(!bets[pl]) bets[pl]={};
+  if(!bets[pl])bets[pl]={};
   let n=0;
   Object.keys(pend[pl]||{}).forEach(mid=>{
     const b=pend[pl][mid];
     if(b.h!==''&&b.a!==''&&b.h!==null&&b.a!==null){bets[pl][mid]={h:parseInt(b.h),a:parseInt(b.a)};n++;}
   });
   pend[pl]={};
-  await svB();
-  rBL();
+  await svB();rBL();
   showMsg('bMsg',n+' apuesta'+(n!==1?'s':'')+' guardada'+(n!==1?'s':'')+' ✓','ok');
 }
 
@@ -356,10 +396,10 @@ window.rRL=function(){
   const gf=(document.getElementById('rG')||{}).value||'';
   const sf=(document.getElementById('rSt')||{}).value||'';
   const fx=MX.filter(m=>{
-    if(gf&&`Grupo ${m.g}`!==gf) return false;
-    if(sf==='p'&&res[m.id]) return false;
-    if(sf==='d'&&!res[m.id]) return false;
-    if(s&&!m.h.toLowerCase().includes(s.toLowerCase())&&!m.a.toLowerCase().includes(s.toLowerCase())) return false;
+    if(gf&&`Grupo ${m.g}`!==gf)return false;
+    if(sf==='p'&&res[m.id])return false;
+    if(sf==='d'&&!res[m.id])return false;
+    if(s&&!m.h.toLowerCase().includes(s.toLowerCase())&&!m.a.toLowerCase().includes(s.toLowerCase()))return false;
     return true;
   });
   const gs=[...new Set(fx.map(m=>m.g))].sort();
@@ -383,7 +423,7 @@ window.rRL=function(){
     });
     html+='</div>';
   });
-  setHTML('rL', html||'<div class="card"><div class="empty">No hay partidos.</div></div>');
+  setHTML('rL',html||'<div class="card"><div class="empty">No hay partidos.</div></div>');
 }
 
 window.svRes=async function(mid){
@@ -391,40 +431,37 @@ window.svRes=async function(mid){
   const a=(document.getElementById('ra'+mid)||{}).value;
   if(h===''||a===''){alert('Ingresá los dos valores.');return;}
   res[mid]={h:parseInt(h),a:parseInt(a)};
-  await svR();
-  showMsg('rm'+mid,'✓','ok');
-  setTimeout(rRL,900);
+  await svR();showMsg('rm'+mid,'✓','ok');setTimeout(rRL,900);
 }
 
 window.dlRes=async function(mid){
-  if(!confirm('¿Borrar el resultado?')) return;
-  delete res[mid];
-  await svR();
-  rRL();
+  if(!confirm('¿Borrar el resultado?'))return;
+  delete res[mid];await svR();rRL();
 }
 
 function pTbl(){
+  const names=partNames();
   const played=Object.keys(res).length;
-  const sc={};parts.forEach(p=>sc[p]={hits:0,earned:0});
+  const sc={};names.forEach(p=>sc[p]={hits:0,earned:0});
   const hist=[];
   MX.forEach(m=>{
-    const r=res[m.id]; if(!r) return;
-    const pot=parts.length*BPM;
-    const w=parts.filter(x=>bets[x]&&bets[x][m.id]&&bets[x][m.id].h===r.h&&bets[x][m.id].a===r.a);
+    const r=res[m.id];if(!r)return;
+    const pot=names.length*BPM;
+    const w=names.filter(x=>bets[x]&&bets[x][m.id]&&bets[x][m.id].h===r.h&&bets[x][m.id].a===r.a);
     if(w.length){const sh=Math.floor(pot/w.length);w.forEach(x=>{sc[x].hits++;sc[x].earned+=sh;});hist.push({m,r,w,sh,acum:false});}
     else hist.push({m,r,w:[],sh:0,acum:true});
   });
-  const srt=parts.slice().sort((a,b)=>sc[b].hits-sc[a].hits||sc[b].earned-sc[a].earned);
+  const srt=names.slice().sort((a,b)=>sc[b].hits-sc[a].hits||sc[b].earned-sc[a].earned);
   const th=Object.values(sc).reduce((s,v)=>s+v.hits,0);
   setHTML('PC',`<div class="sg">
     <div class="sc"><div class="sl">Pozo acumulado</div><div class="sv" style="font-size:15px;color:#BA7517">$${calcPot().toLocaleString('es-AR')}</div></div>
     <div class="sc"><div class="sl">Aciertos totales</div><div class="sv">${th}</div></div>
     <div class="sc"><div class="sl">Partidos jugados</div><div class="sv">${played}</div></div>
-    <div class="sc"><div class="sl">Participantes</div><div class="sv">${parts.length}</div></div>
+    <div class="sc"><div class="sl">Participantes</div><div class="sv">${names.length}</div></div>
   </div>
   <div class="card">
     <h2>Clasificación</h2>
-    ${!parts.length||!played?'<div class="empty">Aún no hay resultados cargados.</div>':`
+    ${!names.length||!played?'<div class="empty">Aún no hay resultados cargados.</div>':`
     <table><thead><tr><th>#</th><th>Participante</th><th>Aciertos</th><th>Ganado</th></tr></thead><tbody>
     ${srt.map((p,i)=>`<tr${!isAdm&&p===me?' class="hirow"':''}>
       <td style="font-weight:700;color:#aaa">${i===0&&sc[p].hits>0?'🏆':(i+1)}</td>
@@ -448,19 +485,16 @@ function pTbl(){
   </div>`);
 }
 
-// Arranca: escucha Firebase y muestra login cuando carguen los datos
-listenData(() => {
+listenData(()=>{
   refreshHeader();
-  // Si ya hay sesión activa, refrescar la vista actual
-  if(me) {
-    const activeTab = document.querySelector('.tab.active');
-    if(activeTab) activeTab.click();
+  if(me){
+    const activeTab=document.querySelector('.tab.active');
+    if(activeTab)activeTab.click();
     else showApp();
   } else {
     showLogin();
   }
 });
-
 </script>
 </body>
 </html>
