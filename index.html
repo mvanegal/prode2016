@@ -10,8 +10,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .app{max-width:700px;margin:0 auto;padding:12px}
 .hdr{background:#fff;border:1px solid #E5E5E0;border-radius:12px;padding:12px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .hdr h1{font-size:17px;font-weight:600}
-.tabs{display:flex;gap:3px;margin-bottom:10px;background:#fff;border:1px solid #E5E5E0;border-radius:8px;padding:3px}
-.tab{flex:1;padding:7px 4px;border:none;background:transparent;border-radius:6px;cursor:pointer;font-size:12px;color:#666;font-family:inherit;transition:all .12s}
+.tabs{display:flex;gap:3px;margin-bottom:10px;background:#fff;border:1px solid #E5E5E0;border-radius:8px;padding:3px;flex-wrap:wrap}
+.tab{flex:1;padding:7px 4px;border:none;background:transparent;border-radius:6px;cursor:pointer;font-size:12px;color:#666;font-family:inherit;transition:all .12s;min-width:60px}
 .tab.active{background:#F0F0EB;color:#1a1a1a;font-weight:600}
 .card{background:#fff;border:1px solid #E5E5E0;border-radius:12px;padding:14px 16px;margin-bottom:10px}
 .card h2{font-size:14px;font-weight:600;margin-bottom:10px}
@@ -46,7 +46,7 @@ button:hover{background:#F0F0EB}
 .sv{font-size:20px;font-weight:700}
 table{width:100%;border-collapse:collapse;font-size:12px}
 th{text-align:left;padding:5px 7px;font-weight:600;color:#888;border-bottom:1px solid #F0F0EB;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
-td{padding:6px 7px;border-bottom:1px solid #F5F5F0}
+td{padding:6px 7px;border-bottom:1px solid #F5F5F0;vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:#FAFAF7}
 .pill{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#F0F0EB;border-radius:20px;font-size:12px;margin:2px;font-weight:500}
@@ -70,6 +70,10 @@ tr:hover td{background:#FAFAF7}
 .part-row:last-child{border-bottom:none}
 .part-name{flex:1;font-size:13px;font-weight:500}
 .pin-badge{font-size:11px;color:#888;background:#F5F5F0;padding:2px 8px;border-radius:10px}
+.score-display{display:inline-block;font-weight:700;font-size:13px;background:#F0F0EB;padding:2px 10px;border-radius:8px;min-width:42px;text-align:center}
+.score-display.hit{background:#EAF3DE;color:#3B6D11}
+.score-display.miss{background:#F5F5F0;color:#888}
+.score-display.empty-bet{background:#F5F5F0;color:#ccc}
 @media(max-width:480px){.md{display:none}.mt{min-width:100px}}
 </style>
 </head>
@@ -137,11 +141,10 @@ const GS=[...new Set(MX.map(m=>m.g))].sort();
 const APASS="prode2026admin";
 const BPM=1000;
 
-// parts ahora es objeto: { "Nombre": { pin: "1234" }, ... }
 let me=null, isAdm=false, parts={}, bets={}, res={}, pend={};
 
 function listenData(cb){
-  onValue(ref(db,'prode'), snap=>{
+  onValue(ref(db,'prode'),snap=>{
     const d=snap.val()||{};
     parts=d.parts||{};
     bets=d.bets||{};
@@ -153,7 +156,6 @@ function listenData(cb){
 const svP=()=>set(ref(db,'prode/parts'),parts);
 const svB=()=>set(ref(db,'prode/bets'),bets);
 const svR=()=>set(ref(db,'prode/res'),res);
-
 function partNames(){return Object.keys(parts);}
 
 function calcPot(){
@@ -224,6 +226,7 @@ function showApp(){
   <div class="tabs">
     ${isAdm?`<button class="tab active" id="t-adm" onclick="sw('adm',this)">⚙ Admin</button>`:''}
     <button class="tab${!isAdm?' active':''}" id="t-bet" onclick="sw('bet',this)">✏ Mis apuestas</button>
+    <button class="tab" id="t-ver" onclick="sw('ver',this)">👁 Ver apuestas</button>
     <button class="tab" id="t-tbl" onclick="sw('tbl',this)">📊 Tabla</button>
     ${isAdm?`<button class="tab" id="t-res" onclick="sw('res',this)">✅ Resultados</button>`:''}
   </div>
@@ -241,6 +244,7 @@ window.sw=function(panel,el){
   if(el)el.classList.add('active');
   if(panel==='adm')pAdm();
   else if(panel==='bet')pBet();
+  else if(panel==='ver')pVer();
   else if(panel==='tbl')pTbl();
   else if(panel==='res')pRes();
 }
@@ -276,7 +280,7 @@ function pAdm(){
     <div class="sc"><div class="sl">Partidos totales</div><div class="sv">96</div></div>
     <div class="sc"><div class="sl">Pozo acumulado</div><div class="sv" style="font-size:15px;color:#BA7517">$${calcPot().toLocaleString('es-AR')}</div></div>
   </div>
-  <div style="font-size:12px;color:#888;margin-top:4px">💡 Cada participante necesita su nombre y PIN para entrar. Compartiles su PIN en privado.</div>
+  <div style="font-size:12px;color:#888;margin-top:4px">💡 Compartí el PIN a cada participante en privado.</div>
   </div>`);
 }
 
@@ -297,8 +301,7 @@ window.addP=async function(){
 
 window.rmP=async function(n){
   if(!confirm('¿Eliminar a '+n+'?'))return;
-  delete parts[n];
-  delete bets[n];
+  delete parts[n];delete bets[n];
   await svP();await svB();
   setHTML('pList',partList());
 }
@@ -378,6 +381,61 @@ window.svBets=async function(){
   pend[pl]={};
   await svB();rBL();
   showMsg('bMsg',n+' apuesta'+(n!==1?'s':'')+' guardada'+(n!==1?'s':'')+' ✓','ok');
+}
+
+// NUEVA PESTAÑA: Ver apuestas de todos (solo lectura)
+function pVer(){
+  const names=partNames();
+  setHTML('PC',`<div class="card" style="margin-bottom:8px">
+    <div class="fr">
+      <input type="text" id="vS" placeholder="Buscar equipo..." oninput="rVL()">
+      <select id="vG" onchange="rVL()"><option value="">Todos los grupos</option>${GS.map(g=>`<option>Grupo ${g}</option>`).join('')}</select>
+    </div>
+  </div>
+  <div id="vL"></div>`);
+  rVL();
+}
+
+window.rVL=function(){
+  const names=partNames();
+  const s=(document.getElementById('vS')||{}).value||'';
+  const gf=(document.getElementById('vG')||{}).value||'';
+  if(!names.length){setHTML('vL','<div class="card"><div class="empty">No hay participantes aún.</div></div>');return;}
+  const fx=MX.filter(m=>{
+    if(gf&&`Grupo ${m.g}`!==gf)return false;
+    if(s&&!m.h.toLowerCase().includes(s.toLowerCase())&&!m.a.toLowerCase().includes(s.toLowerCase()))return false;
+    return true;
+  });
+  const gs=[...new Set(fx.map(m=>m.g))].sort();
+  let html='';
+  gs.forEach(g=>{
+    html+=`<div class="card" style="margin-bottom:8px">
+      <div class="gh">Grupo ${g}</div>
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th style="min-width:130px">Partido</th>
+          ${names.map(p=>`<th style="text-align:center;min-width:70px">${p}${p===me?' <span style="font-size:10px;color:#185FA5">(vos)</span>':''}</th>`).join('')}
+          <th style="text-align:center">Resultado</th>
+        </tr></thead>
+        <tbody>`;
+    fx.filter(m=>m.g===g).forEach(m=>{
+      const r=res[m.id];
+      html+=`<tr>
+        <td style="font-size:12px"><div style="font-weight:500">${m.h} vs ${m.a}</div><div style="font-size:11px;color:#aaa">${m.d}</div></td>
+        ${names.map(p=>{
+          const b=bets[p]&&bets[p][m.id];
+          if(!b)return`<td style="text-align:center"><span class="score-display empty-bet">—</span></td>`;
+          const isHit=r&&b.h===r.h&&b.a===r.a;
+          const cls=r?(isHit?'hit':'miss'):'';
+          return`<td style="text-align:center"><span class="score-display ${cls}">${b.h}-${b.a}</span></td>`;
+        }).join('')}
+        <td style="text-align:center">${r?`<span class="score-display" style="background:#1a1a1a;color:#fff">${r.h}-${r.a}</span>`:`<span style="font-size:11px;color:#aaa">—</span>`}</td>
+      </tr>`;
+    });
+    html+=`</tbody></table></div></div>`;
+  });
+  setHTML('vL',html||'<div class="card"><div class="empty">No hay partidos.</div></div>');
 }
 
 function pRes(){
