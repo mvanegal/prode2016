@@ -11,12 +11,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .hdr{background:#fff;border:1px solid #E5E5E0;border-radius:12px;padding:12px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .hdr h1{font-size:17px;font-weight:600}
 .tabs{display:flex;gap:3px;margin-bottom:10px;background:#fff;border:1px solid #E5E5E0;border-radius:8px;padding:3px;flex-wrap:wrap}
-.tab{flex:1;padding:7px 4px;border:none;background:transparent;border-radius:6px;cursor:pointer;font-size:12px;color:#666;font-family:inherit;transition:all .12s;min-width:60px}
+.tab{flex:1;padding:7px 4px;border:none;background:transparent;border-radius:6px;cursor:pointer;font-size:12px;color:#666;font-family:inherit;transition:all .12s;min-width:55px}
 .tab.active{background:#F0F0EB;color:#1a1a1a;font-weight:600}
 .card{background:#fff;border:1px solid #E5E5E0;border-radius:12px;padding:14px 16px;margin-bottom:10px}
 .card h2{font-size:14px;font-weight:600;margin-bottom:10px}
-input,select{padding:7px 10px;border:1px solid #E5E5E0;border-radius:8px;background:#fff;color:#1a1a1a;font-size:13px;font-family:inherit}
-input:focus,select:focus{outline:none;border-color:#999}
+input,select,textarea{padding:7px 10px;border:1px solid #E5E5E0;border-radius:8px;background:#fff;color:#1a1a1a;font-size:13px;font-family:inherit}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#999}
 button{padding:7px 14px;border:1px solid #ccc;border-radius:8px;background:transparent;color:#1a1a1a;cursor:pointer;font-size:12px;font-family:inherit;transition:background .1s}
 button:hover{background:#F0F0EB}
 .btn-p{border-color:#1a1a1a;font-weight:600}
@@ -74,6 +74,24 @@ tr:hover td{background:#FAFAF7}
 .score-display.hit{background:#EAF3DE;color:#3B6D11}
 .score-display.miss{background:#F5F5F0;color:#888}
 .score-display.empty-bet{background:#F5F5F0;color:#ccc}
+/* CHAT */
+.chat-box{height:380px;overflow-y:auto;border:1px solid #E5E5E0;border-radius:10px;padding:10px;background:#FAFAF8;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
+.chat-msg{display:flex;flex-direction:column;max-width:80%}
+.chat-msg.mine{align-self:flex-end;align-items:flex-end}
+.chat-msg.other{align-self:flex-start;align-items:flex-start}
+.chat-bubble{padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.4;word-break:break-word}
+.chat-msg.mine .chat-bubble{background:#1a1a1a;color:#fff;border-bottom-right-radius:3px}
+.chat-msg.other .chat-bubble{background:#fff;border:1px solid #E5E5E0;border-bottom-left-radius:3px}
+.chat-meta{font-size:11px;color:#aaa;margin-top:2px;padding:0 3px}
+.chat-input-row{display:flex;gap:6px}
+.chat-input-row textarea{flex:1;resize:none;height:38px;padding:9px 10px;font-size:13px;border-radius:8px}
+.match-comments{margin-top:8px;padding-top:8px;border-top:1px solid #F0F0EB}
+.match-comment-item{padding:5px 0;border-bottom:1px solid #F5F5F0;font-size:12px}
+.match-comment-item:last-child{border-bottom:none}
+.match-comment-author{font-weight:600;color:#1a1a1a}
+.match-comment-text{color:#444;margin-left:4px}
+.match-comment-time{font-size:10px;color:#aaa;margin-left:6px}
+.toggle-comments{font-size:11px;padding:3px 8px;color:#666;margin-left:4px}
 @media(max-width:480px){.md{display:none}.mt{min-width:100px}}
 </style>
 </head>
@@ -84,7 +102,7 @@ tr:hover td{background:#FAFAF7}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDRhyJsZ6GwiDLjXfSoeGdIAC5_ltGSZds",
@@ -141,14 +159,14 @@ const GS=[...new Set(MX.map(m=>m.g))].sort();
 const APASS="prode2026admin";
 const BPM=1000;
 
-let me=null, isAdm=false, parts={}, bets={}, res={}, pend={};
+let me=null,isAdm=false,parts={},bets={},res={},pend={},chatMsgs={},matchComments={};
+let openComments={};
 
 function listenData(cb){
   onValue(ref(db,'prode'),snap=>{
     const d=snap.val()||{};
-    parts=d.parts||{};
-    bets=d.bets||{};
-    res=d.res||{};
+    parts=d.parts||{};bets=d.bets||{};res=d.res||{};
+    chatMsgs=d.chat||{};matchComments=d.matchComments||{};
     cb();
   });
 }
@@ -159,14 +177,19 @@ const svR=()=>set(ref(db,'prode/res'),res);
 function partNames(){return Object.keys(parts);}
 
 function calcPot(){
-  let t=0;
-  const names=partNames();
+  let t=0;const names=partNames();
   MX.forEach(m=>{
     const r=res[m.id];if(!r)return;
     const w=names.filter(p=>bets[p]&&bets[p][m.id]&&bets[p][m.id].h===r.h&&bets[p][m.id].a===r.a);
     if(!w.length)t+=names.length*BPM;
   });
   return t;
+}
+
+function fmtTime(ts){
+  if(!ts)return'';
+  const d=new Date(ts);
+  return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
 }
 
 function setHTML(id,h){const e=document.getElementById(id);if(e)e.innerHTML=h;}
@@ -225,9 +248,10 @@ function showApp(){
   </div>
   <div class="tabs">
     ${isAdm?`<button class="tab active" id="t-adm" onclick="sw('adm',this)">⚙ Admin</button>`:''}
-    <button class="tab${!isAdm?' active':''}" id="t-bet" onclick="sw('bet',this)">✏ Mis apuestas</button>
-    <button class="tab" id="t-ver" onclick="sw('ver',this)">👁 Ver apuestas</button>
+    <button class="tab${!isAdm?' active':''}" id="t-bet" onclick="sw('bet',this)">✏ Apuestas</button>
+    <button class="tab" id="t-ver" onclick="sw('ver',this)">👁 Ver</button>
     <button class="tab" id="t-tbl" onclick="sw('tbl',this)">📊 Tabla</button>
+    <button class="tab" id="t-chat" onclick="sw('chat',this)">💬 Chat</button>
     ${isAdm?`<button class="tab" id="t-res" onclick="sw('res',this)">✅ Resultados</button>`:''}
   </div>
   <div id="PC"></div>`;
@@ -246,6 +270,7 @@ window.sw=function(panel,el){
   else if(panel==='bet')pBet();
   else if(panel==='ver')pVer();
   else if(panel==='tbl')pTbl();
+  else if(panel==='chat')pChat();
   else if(panel==='res')pRes();
 }
 
@@ -290,20 +315,15 @@ window.addP=async function(){
   if(!n){showMsg('pMsg','Falta el nombre.','er');return;}
   if(!pin){showMsg('pMsg','Falta el PIN.','er');return;}
   if(parts[n]){showMsg('pMsg','Ya existe.','er');return;}
-  parts[n]={pin};
-  await svP();
-  document.getElementById('nN').value='';
-  document.getElementById('nPin').value='';
-  setHTML('pList',partList());
-  showMsg('pMsg','Guardado ✓','ok');
+  parts[n]={pin};await svP();
+  document.getElementById('nN').value='';document.getElementById('nPin').value='';
+  setHTML('pList',partList());showMsg('pMsg','Guardado ✓','ok');
   document.getElementById('nN').focus();
 }
 
 window.rmP=async function(n){
   if(!confirm('¿Eliminar a '+n+'?'))return;
-  delete parts[n];delete bets[n];
-  await svP();await svB();
-  setHTML('pList',partList());
+  delete parts[n];delete bets[n];await svP();await svB();setHTML('pList',partList());
 }
 
 function getPlayer(){return isAdm?(document.getElementById('bP')||{}).value||'':me;}
@@ -378,12 +398,10 @@ window.svBets=async function(){
     const b=pend[pl][mid];
     if(b.h!==''&&b.a!==''&&b.h!==null&&b.a!==null){bets[pl][mid]={h:parseInt(b.h),a:parseInt(b.a)};n++;}
   });
-  pend[pl]={};
-  await svB();rBL();
+  pend[pl]={};await svB();rBL();
   showMsg('bMsg',n+' apuesta'+(n!==1?'s':'')+' guardada'+(n!==1?'s':'')+' ✓','ok');
 }
 
-// NUEVA PESTAÑA: Ver apuestas de todos (solo lectura)
 function pVer(){
   const names=partNames();
   setHTML('PC',`<div class="card" style="margin-bottom:8px">
@@ -391,8 +409,7 @@ function pVer(){
       <input type="text" id="vS" placeholder="Buscar equipo..." oninput="rVL()">
       <select id="vG" onchange="rVL()"><option value="">Todos los grupos</option>${GS.map(g=>`<option>Grupo ${g}</option>`).join('')}</select>
     </div>
-  </div>
-  <div id="vL"></div>`);
+  </div><div id="vL"></div>`);
   rVL();
 }
 
@@ -409,18 +426,17 @@ window.rVL=function(){
   const gs=[...new Set(fx.map(m=>m.g))].sort();
   let html='';
   gs.forEach(g=>{
-    html+=`<div class="card" style="margin-bottom:8px">
-      <div class="gh">Grupo ${g}</div>
-      <div style="overflow-x:auto">
-      <table>
-        <thead><tr>
-          <th style="min-width:130px">Partido</th>
-          ${names.map(p=>`<th style="text-align:center;min-width:70px">${p}${p===me?' <span style="font-size:10px;color:#185FA5">(vos)</span>':''}</th>`).join('')}
-          <th style="text-align:center">Resultado</th>
-        </tr></thead>
-        <tbody>`;
+    html+=`<div class="card" style="margin-bottom:8px"><div class="gh">Grupo ${g}</div><div style="overflow-x:auto">
+    <table><thead><tr>
+      <th style="min-width:130px">Partido</th>
+      ${names.map(p=>`<th style="text-align:center;min-width:65px">${p}${p===me?' <span style="font-size:10px;color:#185FA5">(vos)</span>':''}</th>`).join('')}
+      <th style="text-align:center">Resultado</th>
+      <th></th>
+    </tr></thead><tbody>`;
     fx.filter(m=>m.g===g).forEach(m=>{
       const r=res[m.id];
+      const mc=matchComments[m.id]?Object.values(matchComments[m.id]):[];
+      const isOpen=openComments[m.id];
       html+=`<tr>
         <td style="font-size:12px"><div style="font-weight:500">${m.h} vs ${m.a}</div><div style="font-size:11px;color:#aaa">${m.d}</div></td>
         ${names.map(p=>{
@@ -431,11 +447,74 @@ window.rVL=function(){
           return`<td style="text-align:center"><span class="score-display ${cls}">${b.h}-${b.a}</span></td>`;
         }).join('')}
         <td style="text-align:center">${r?`<span class="score-display" style="background:#1a1a1a;color:#fff">${r.h}-${r.a}</span>`:`<span style="font-size:11px;color:#aaa">—</span>`}</td>
+        <td><button class="toggle-comments" onclick="toggleComments(${m.id})">💬 ${mc.length?mc.length:''}</button></td>
+      </tr>
+      <tr id="cmrow-${m.id}" style="display:${isOpen?'':'none'}">
+        <td colspan="${names.length+3}" style="padding:0 4px 8px">
+          <div class="match-comments">
+            <div id="mclist-${m.id}">
+              ${mc.length?mc.sort((a,b)=>a.ts-b.ts).map(c=>`<div class="match-comment-item">
+                <span class="match-comment-author">${c.author}:</span>
+                <span class="match-comment-text">${c.text}</span>
+                <span class="match-comment-time">${fmtTime(c.ts)}</span>
+              </div>`).join(''):'<div style="font-size:12px;color:#aaa;padding:4px 0">Sin comentarios aún.</div>'}
+            </div>
+            <div style="display:flex;gap:6px;margin-top:8px">
+              <input type="text" id="mci-${m.id}" placeholder="Comentar este partido..." style="flex:1;font-size:12px" onkeydown="if(event.key==='Enter')sendMatchComment(${m.id})">
+              <button style="font-size:11px;padding:4px 10px" onclick="sendMatchComment(${m.id})">Enviar</button>
+            </div>
+          </div>
+        </td>
       </tr>`;
     });
     html+=`</tbody></table></div></div>`;
   });
   setHTML('vL',html||'<div class="card"><div class="empty">No hay partidos.</div></div>');
+}
+
+window.toggleComments=function(mid){
+  openComments[mid]=!openComments[mid];
+  const row=document.getElementById('cmrow-'+mid);
+  if(row)row.style.display=openComments[mid]?'':'none';
+}
+
+window.sendMatchComment=async function(mid){
+  const inp=document.getElementById('mci-'+mid);
+  if(!inp)return;
+  const txt=inp.value.trim();
+  if(!txt)return;
+  await push(ref(db,'prode/matchComments/'+mid),{author:me,text:txt,ts:Date.now()});
+  inp.value='';
+}
+
+// CHAT GENERAL
+function pChat(){
+  const msgs=Object.values(chatMsgs).sort((a,b)=>a.ts-b.ts);
+  setHTML('PC',`<div class="card">
+    <h2>💬 Chat general</h2>
+    <div class="chat-box" id="chatBox">
+      ${msgs.length?msgs.map(m=>`
+        <div class="chat-msg ${m.author===me?'mine':'other'}">
+          <div class="chat-bubble">${m.text}</div>
+          <div class="chat-meta">${m.author===me?'Vos':m.author} · ${fmtTime(m.ts)}</div>
+        </div>`).join(''):'<div class="empty">Nadie comentó aún. ¡Sé el primero!</div>'}
+    </div>
+    <div class="chat-input-row">
+      <textarea id="chatInput" placeholder="Escribí un mensaje..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+      <button class="btn-p" onclick="sendChat()" style="padding:8px 14px">Enviar</button>
+    </div>
+  </div>`);
+  const box=document.getElementById('chatBox');
+  if(box)box.scrollTop=box.scrollHeight;
+}
+
+window.sendChat=async function(){
+  const inp=document.getElementById('chatInput');
+  if(!inp)return;
+  const txt=inp.value.trim();
+  if(!txt)return;
+  await push(ref(db,'prode/chat'),{author:me,text:txt,ts:Date.now()});
+  inp.value='';
 }
 
 function pRes(){
@@ -491,15 +570,13 @@ window.svRes=async function(mid){
   res[mid]={h:parseInt(h),a:parseInt(a)};
   await svR();showMsg('rm'+mid,'✓','ok');setTimeout(rRL,900);
 }
-
 window.dlRes=async function(mid){
   if(!confirm('¿Borrar el resultado?'))return;
   delete res[mid];await svR();rRL();
 }
 
 function pTbl(){
-  const names=partNames();
-  const played=Object.keys(res).length;
+  const names=partNames();const played=Object.keys(res).length;
   const sc={};names.forEach(p=>sc[p]={hits:0,earned:0});
   const hist=[];
   MX.forEach(m=>{
@@ -517,8 +594,7 @@ function pTbl(){
     <div class="sc"><div class="sl">Partidos jugados</div><div class="sv">${played}</div></div>
     <div class="sc"><div class="sl">Participantes</div><div class="sv">${names.length}</div></div>
   </div>
-  <div class="card">
-    <h2>Clasificación</h2>
+  <div class="card"><h2>Clasificación</h2>
     ${!names.length||!played?'<div class="empty">Aún no hay resultados cargados.</div>':`
     <table><thead><tr><th>#</th><th>Participante</th><th>Aciertos</th><th>Ganado</th></tr></thead><tbody>
     ${srt.map((p,i)=>`<tr${!isAdm&&p===me?' class="hirow"':''}>
@@ -526,11 +602,9 @@ function pTbl(){
       <td>${p}${!isAdm&&p===me?' <span style="font-size:10px;color:#185FA5;font-weight:600">(vos)</span>':''}</td>
       <td style="font-weight:600">${sc[p].hits}</td>
       <td style="font-weight:${sc[p].earned>0?700:400}">$${sc[p].earned.toLocaleString('es-AR')}</td>
-    </tr>`).join('')}
-    </tbody></table>`}
+    </tr>`).join('')}</tbody></table>`}
   </div>
-  <div class="card">
-    <h2>Historial de partidos</h2>
+  <div class="card"><h2>Historial de partidos</h2>
     ${!hist.length?'<div class="empty">Sin resultados aún.</div>':`
     <table><thead><tr><th>Partido</th><th>Res.</th><th>Ganadores</th><th>Pozo</th></tr></thead><tbody>
     ${hist.slice().reverse().map(row=>`<tr>
@@ -538,8 +612,7 @@ function pTbl(){
       <td style="font-weight:700">${row.r.h}-${row.r.a}</td>
       <td style="font-size:11px;color:#888">${row.acum?'<span class="badge ba">Nadie</span>':row.w.join(', ')}</td>
       <td style="font-size:11px">${row.acum?'<span class="badge ba">Acumula</span>':`$${row.sh.toLocaleString('es-AR')}`}</td>
-    </tr>`).join('')}
-    </tbody></table>`}
+    </tr>`).join('')}</tbody></table>`}
   </div>`);
 }
 
