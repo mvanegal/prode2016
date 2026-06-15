@@ -74,8 +74,7 @@ tr:hover td{background:#FAFAF7}
 .score-display.hit{background:#EAF3DE;color:#3B6D11}
 .score-display.miss{background:#F5F5F0;color:#888}
 .score-display.empty-bet{background:#F5F5F0;color:#ccc}
-/* CHAT */
-.chat-box{height:380px;overflow-y:auto;border:1px solid #E5E5E0;border-radius:10px;padding:10px;background:#FAFAF8;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
+.chat-box{height:360px;overflow-y:auto;border:1px solid #E5E5E0;border-radius:10px;padding:10px;background:#FAFAF8;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
 .chat-msg{display:flex;flex-direction:column;max-width:80%}
 .chat-msg.mine{align-self:flex-end;align-items:flex-end}
 .chat-msg.other{align-self:flex-start;align-items:flex-start}
@@ -88,10 +87,9 @@ tr:hover td{background:#FAFAF7}
 .match-comments{margin-top:8px;padding-top:8px;border-top:1px solid #F0F0EB}
 .match-comment-item{padding:5px 0;border-bottom:1px solid #F5F5F0;font-size:12px}
 .match-comment-item:last-child{border-bottom:none}
-.match-comment-author{font-weight:600;color:#1a1a1a}
-.match-comment-text{color:#444;margin-left:4px}
+.match-comment-author{font-weight:600}
 .match-comment-time{font-size:10px;color:#aaa;margin-left:6px}
-.toggle-comments{font-size:11px;padding:3px 8px;color:#666;margin-left:4px}
+.toggle-comments{font-size:11px;padding:3px 8px;color:#666}
 @media(max-width:480px){.md{display:none}.mt{min-width:100px}}
 </style>
 </head>
@@ -99,10 +97,9 @@ tr:hover td{background:#FAFAF7}
 <div class="app" id="R">
   <div class="loading"><span class="spin"></span>Conectando...</div>
 </div>
-
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, push, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDRhyJsZ6GwiDLjXfSoeGdIAC5_ltGSZds",
@@ -114,8 +111,8 @@ const firebaseConfig = {
   appId: "1:143708998992:web:f3ec41e02d5b9d41ddb055"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+const app=initializeApp(firebaseConfig);
+const db=getDatabase(app);
 
 const MX=[
   {id:1,d:"11/6 16:00",h:"México",a:"Sudáfrica",g:"A"},{id:2,d:"11/6 23:00",h:"Corea del Sur",a:"Rep. Checa",g:"A"},
@@ -159,8 +156,7 @@ const GS=[...new Set(MX.map(m=>m.g))].sort();
 const APASS="prode2026admin";
 const BPM=1000;
 
-let me=null,isAdm=false,parts={},bets={},res={},pend={},chatMsgs={},matchComments={};
-let openComments={};
+let me=null,isAdm=false,parts={},bets={},res={},pend={},chatMsgs={},matchComments={},openComments={};
 
 function listenData(cb){
   onValue(ref(db,'prode'),snap=>{
@@ -176,14 +172,50 @@ const svB=()=>set(ref(db,'prode/bets'),bets);
 const svR=()=>set(ref(db,'prode/res'),res);
 function partNames(){return Object.keys(parts);}
 
-function calcPot(){
-  let t=0;const names=partNames();
-  MX.forEach(m=>{
-    const r=res[m.id];if(!r)return;
-    const w=names.filter(p=>bets[p]&&bets[p][m.id]&&bets[p][m.id].h===r.h&&bets[p][m.id].a===r.a);
-    if(!w.length)t+=names.length*BPM;
+// LÓGICA DE POZO JUSTO:
+// Cada partido tiene su propio pozo = $1000 x quienes apostaron ESE partido
+// Si nadie acierta, ese pozo se acumula al siguiente
+// El pozo acumulado solo lo puede ganar quien apostó en ese partido actual
+// (no quien no contribuyó en los anteriores)
+function calcStats(){
+  const names=partNames();
+  const sc={};names.forEach(p=>sc[p]={hits:0,earned:0});
+  const hist=[];
+  let carryOver=0; // pozo acumulado de partidos anteriores sin ganador
+
+  MX.forEach((m,idx)=>{
+    const r=res[m.id];
+    // Quienes apostaron este partido
+    const apostaron=names.filter(p=>bets[p]&&bets[p][m.id]!==undefined&&bets[p][m.id]!==null);
+    const pozoBase=apostaron.length*BPM;
+    const pozoTotal=pozoBase+carryOver;
+
+    if(!r){
+      // partido no jugado aún, no tocamos carryOver
+      return;
+    }
+
+    // Ganadores: acertaron el resultado Y apostaron este partido
+    const winners=apostaron.filter(p=>bets[p][m.id].h===r.h&&bets[p][m.id].a===r.a);
+
+    if(winners.length>0){
+      // El pozo acumulado (carryOver) se reparte entre los ganadores que apostaron este partido
+      const share=Math.floor(pozoTotal/winners.length);
+      winners.forEach(p=>{sc[p].hits++;sc[p].earned+=share;});
+      hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,share,acum:false,carryOver});
+      carryOver=0;
+    } else {
+      // Nadie acertó: el pozo de este partido se acumula
+      hist.push({m,r,apostaron,winners:[],pozoBase,pozoTotal,share:0,acum:true,carryOver});
+      carryOver=pozoTotal;
+    }
   });
-  return t;
+
+  return {sc,hist,carryOver};
+}
+
+function calcPot(){
+  return calcStats().carryOver;
 }
 
 function fmtTime(ts){
@@ -286,6 +318,7 @@ function partList(){
 
 function pAdm(){
   const names=partNames();
+  const {carryOver}=calcStats();
   setHTML('PC',`<div class="card"><h2>Participantes (${names.length})</h2>
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:flex-end">
       <div><div style="font-size:11px;color:#666;margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Nombre</div>
@@ -303,9 +336,9 @@ function pAdm(){
     <div class="sc"><div class="sl">Participantes</div><div class="sv">${names.length}</div></div>
     <div class="sc"><div class="sl">Resultados cargados</div><div class="sv">${Object.keys(res).length}/96</div></div>
     <div class="sc"><div class="sl">Partidos totales</div><div class="sv">96</div></div>
-    <div class="sc"><div class="sl">Pozo acumulado</div><div class="sv" style="font-size:15px;color:#BA7517">$${calcPot().toLocaleString('es-AR')}</div></div>
+    <div class="sc"><div class="sl">Pozo acumulado</div><div class="sv" style="font-size:15px;color:#BA7517">$${carryOver.toLocaleString('es-AR')}</div></div>
   </div>
-  <div style="font-size:12px;color:#888;margin-top:4px">💡 Compartí el PIN a cada participante en privado.</div>
+  <div style="font-size:12px;color:#888;margin-top:4px">💡 El pozo de cada partido se calcula según quienes apostaron ese partido. Solo quien apostó puede ganar.</div>
   </div>`);
 }
 
@@ -320,7 +353,6 @@ window.addP=async function(){
   setHTML('pList',partList());showMsg('pMsg','Guardado ✓','ok');
   document.getElementById('nN').focus();
 }
-
 window.rmP=async function(n){
   if(!confirm('¿Eliminar a '+n+'?'))return;
   delete parts[n];delete bets[n];await svP();await svB();setHTML('pList',partList());
@@ -430,8 +462,7 @@ window.rVL=function(){
     <table><thead><tr>
       <th style="min-width:130px">Partido</th>
       ${names.map(p=>`<th style="text-align:center;min-width:65px">${p}${p===me?' <span style="font-size:10px;color:#185FA5">(vos)</span>':''}</th>`).join('')}
-      <th style="text-align:center">Resultado</th>
-      <th></th>
+      <th style="text-align:center">Resultado</th><th></th>
     </tr></thead><tbody>`;
     fx.filter(m=>m.g===g).forEach(m=>{
       const r=res[m.id];
@@ -447,15 +478,15 @@ window.rVL=function(){
           return`<td style="text-align:center"><span class="score-display ${cls}">${b.h}-${b.a}</span></td>`;
         }).join('')}
         <td style="text-align:center">${r?`<span class="score-display" style="background:#1a1a1a;color:#fff">${r.h}-${r.a}</span>`:`<span style="font-size:11px;color:#aaa">—</span>`}</td>
-        <td><button class="toggle-comments" onclick="toggleComments(${m.id})">💬 ${mc.length?mc.length:''}</button></td>
+        <td><button class="toggle-comments" onclick="toggleComments(${m.id})">💬${mc.length?' '+mc.length:''}</button></td>
       </tr>
       <tr id="cmrow-${m.id}" style="display:${isOpen?'':'none'}">
-        <td colspan="${names.length+3}" style="padding:0 4px 8px">
+        <td colspan="${names.length+3}" style="padding:0 6px 10px">
           <div class="match-comments">
             <div id="mclist-${m.id}">
               ${mc.length?mc.sort((a,b)=>a.ts-b.ts).map(c=>`<div class="match-comment-item">
                 <span class="match-comment-author">${c.author}:</span>
-                <span class="match-comment-text">${c.text}</span>
+                <span style="color:#444;margin-left:4px">${c.text}</span>
                 <span class="match-comment-time">${fmtTime(c.ts)}</span>
               </div>`).join(''):'<div style="font-size:12px;color:#aaa;padding:4px 0">Sin comentarios aún.</div>'}
             </div>
@@ -477,17 +508,14 @@ window.toggleComments=function(mid){
   const row=document.getElementById('cmrow-'+mid);
   if(row)row.style.display=openComments[mid]?'':'none';
 }
-
 window.sendMatchComment=async function(mid){
   const inp=document.getElementById('mci-'+mid);
   if(!inp)return;
-  const txt=inp.value.trim();
-  if(!txt)return;
+  const txt=inp.value.trim();if(!txt)return;
   await push(ref(db,'prode/matchComments/'+mid),{author:me,text:txt,ts:Date.now()});
   inp.value='';
 }
 
-// CHAT GENERAL
 function pChat(){
   const msgs=Object.values(chatMsgs).sort((a,b)=>a.ts-b.ts);
   setHTML('PC',`<div class="card">
@@ -497,7 +525,7 @@ function pChat(){
         <div class="chat-msg ${m.author===me?'mine':'other'}">
           <div class="chat-bubble">${m.text}</div>
           <div class="chat-meta">${m.author===me?'Vos':m.author} · ${fmtTime(m.ts)}</div>
-        </div>`).join(''):'<div class="empty">Nadie comentó aún. ¡Sé el primero!</div>'}
+        </div>`).join(''):'<div class="empty">¡Nadie comentó aún. Sé el primero!</div>'}
     </div>
     <div class="chat-input-row">
       <textarea id="chatInput" placeholder="Escribí un mensaje..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
@@ -507,12 +535,9 @@ function pChat(){
   const box=document.getElementById('chatBox');
   if(box)box.scrollTop=box.scrollHeight;
 }
-
 window.sendChat=async function(){
-  const inp=document.getElementById('chatInput');
-  if(!inp)return;
-  const txt=inp.value.trim();
-  if(!txt)return;
+  const inp=document.getElementById('chatInput');if(!inp)return;
+  const txt=inp.value.trim();if(!txt)return;
   await push(ref(db,'prode/chat'),{author:me,text:txt,ts:Date.now()});
   inp.value='';
 }
@@ -527,7 +552,6 @@ function pRes(){
   </div><div id="rL"></div>`);
   rRL();
 }
-
 window.rRL=function(){
   const s=(document.getElementById('rS')||{}).value||'';
   const gf=(document.getElementById('rG')||{}).value||'';
@@ -545,9 +569,12 @@ window.rRL=function(){
     html+=`<div class="card" style="margin-bottom:8px"><div class="gh">Grupo ${g}</div>`;
     fx.filter(m=>m.g===g).forEach(m=>{
       const r=res[m.id];
+      const apostaron=partNames().filter(p=>bets[p]&&bets[p][m.id]!==undefined);
       html+=`<div class="mr">
         <div class="md">${m.d}</div>
-        <div class="mt">${m.h} <span style="color:#aaa">vs</span> ${m.a}</div>
+        <div class="mt">${m.h} <span style="color:#aaa">vs</span> ${m.a}
+          <span style="font-size:11px;color:#aaa;margin-left:4px">(${apostaron.length} apostaron · $${(apostaron.length*BPM).toLocaleString('es-AR')})</span>
+        </div>
         <div class="si">
           <input type="number" min="0" max="20" value="${r?r.h:''}" placeholder="-" style="width:40px" id="rh${m.id}">
           <span class="sep">-</span>
@@ -562,7 +589,6 @@ window.rRL=function(){
   });
   setHTML('rL',html||'<div class="card"><div class="empty">No hay partidos.</div></div>');
 }
-
 window.svRes=async function(mid){
   const h=(document.getElementById('rh'+mid)||{}).value;
   const a=(document.getElementById('ra'+mid)||{}).value;
@@ -576,20 +602,13 @@ window.dlRes=async function(mid){
 }
 
 function pTbl(){
-  const names=partNames();const played=Object.keys(res).length;
-  const sc={};names.forEach(p=>sc[p]={hits:0,earned:0});
-  const hist=[];
-  MX.forEach(m=>{
-    const r=res[m.id];if(!r)return;
-    const pot=names.length*BPM;
-    const w=names.filter(x=>bets[x]&&bets[x][m.id]&&bets[x][m.id].h===r.h&&bets[x][m.id].a===r.a);
-    if(w.length){const sh=Math.floor(pot/w.length);w.forEach(x=>{sc[x].hits++;sc[x].earned+=sh;});hist.push({m,r,w,sh,acum:false});}
-    else hist.push({m,r,w:[],sh:0,acum:true});
-  });
+  const names=partNames();
+  const played=Object.keys(res).length;
+  const {sc,hist,carryOver}=calcStats();
   const srt=names.slice().sort((a,b)=>sc[b].hits-sc[a].hits||sc[b].earned-sc[a].earned);
   const th=Object.values(sc).reduce((s,v)=>s+v.hits,0);
   setHTML('PC',`<div class="sg">
-    <div class="sc"><div class="sl">Pozo acumulado</div><div class="sv" style="font-size:15px;color:#BA7517">$${calcPot().toLocaleString('es-AR')}</div></div>
+    <div class="sc"><div class="sl">Pozo acumulado</div><div class="sv" style="font-size:15px;color:#BA7517">$${carryOver.toLocaleString('es-AR')}</div></div>
     <div class="sc"><div class="sl">Aciertos totales</div><div class="sv">${th}</div></div>
     <div class="sc"><div class="sl">Partidos jugados</div><div class="sv">${played}</div></div>
     <div class="sc"><div class="sl">Participantes</div><div class="sv">${names.length}</div></div>
@@ -606,12 +625,13 @@ function pTbl(){
   </div>
   <div class="card"><h2>Historial de partidos</h2>
     ${!hist.length?'<div class="empty">Sin resultados aún.</div>':`
-    <table><thead><tr><th>Partido</th><th>Res.</th><th>Ganadores</th><th>Pozo</th></tr></thead><tbody>
+    <table><thead><tr><th>Partido</th><th>Res.</th><th>Apostaron</th><th>Pozo</th><th>Ganadores</th></tr></thead><tbody>
     ${hist.slice().reverse().map(row=>`<tr>
       <td style="font-size:11px">${row.m.h} vs ${row.m.a}</td>
       <td style="font-weight:700">${row.r.h}-${row.r.a}</td>
-      <td style="font-size:11px;color:#888">${row.acum?'<span class="badge ba">Nadie</span>':row.w.join(', ')}</td>
-      <td style="font-size:11px">${row.acum?'<span class="badge ba">Acumula</span>':`$${row.sh.toLocaleString('es-AR')}`}</td>
+      <td style="font-size:11px;color:#888">${row.apostaron.length}</td>
+      <td style="font-size:11px;font-weight:600">$${row.pozoTotal.toLocaleString('es-AR')}${row.carryOver>0?` <span style="font-size:10px;color:#633806">(+$${row.carryOver.toLocaleString('es-AR')} acum.)</span>`:''}</td>
+      <td style="font-size:11px;color:#888">${row.acum?'<span class="badge ba">Nadie — acumula</span>':row.winners.join(', ')}</td>
     </tr>`).join('')}</tbody></table>`}
   </div>`);
 }
