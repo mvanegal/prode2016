@@ -157,7 +157,6 @@ const APASS="prode2026admin";
 const BPM=1000;
 
 let me=null,isAdm=false,parts={},bets={},res={},pend={},chatMsgs={},matchComments={},openComments={};
-let lastReadChat=0,lastReadMatchComments={};
 
 function listenData(cb){
   onValue(ref(db,'prode'),snap=>{
@@ -219,35 +218,7 @@ function calcPot(){
   return calcStats().carryOver;
 }
 
-function unreadChatCount(){
-  if(!chatMsgs)return 0;
-  return Object.values(chatMsgs).filter(m=>m.ts>lastReadChat&&m.author!==me).length;
-}
-
-function unreadMatchCount(){
-  if(!matchComments)return 0;
-  let total=0;
-  Object.keys(matchComments).forEach(mid=>{
-    const last=lastReadMatchComments[mid]||0;
-    const comments=Object.values(matchComments[mid]||{});
-    total+=comments.filter(c=>c.ts>last&&c.author!==me).length;
-  });
-  return total;
-}
-
-function updateBadges(){
-  const chatTab=document.getElementById('t-chat');
-  const verTab=document.getElementById('t-ver');
-  const uc=unreadChatCount();
-  const um=unreadMatchCount();
-  if(chatTab){
-    chatTab.innerHTML=`💬 Chat${uc>0?` <span style="display:inline-block;background:#e00;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 5px;vertical-align:middle">${uc}</span>`:''}`;
-  }
-  if(verTab){
-    verTab.innerHTML=`👁 Ver${um>0?` <span style="display:inline-block;background:#e00;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 5px;vertical-align:middle">${um}</span>`:''}`;
-  }
-}
-
+function fmtTime(ts){
   if(!ts)return'';
   const d=new Date(ts);
   return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
@@ -534,10 +505,6 @@ window.rVL=function(){
 
 window.toggleComments=function(mid){
   openComments[mid]=!openComments[mid];
-  if(openComments[mid]){
-    lastReadMatchComments[mid]=Date.now();
-    updateBadges();
-  }
   const row=document.getElementById('cmrow-'+mid);
   if(row)row.style.display=openComments[mid]?'':'none';
 }
@@ -550,9 +517,6 @@ window.sendMatchComment=async function(mid){
 }
 
 function pChat(){
-  // marcar como leído
-  lastReadChat=Date.now();
-  updateBadges();
   const msgs=Object.values(chatMsgs).sort((a,b)=>a.ts-b.ts);
   setHTML('PC',`<div class="card">
     <h2>💬 Chat general</h2>
@@ -674,7 +638,6 @@ function pTbl(){
 
 listenData(()=>{
   refreshHeader();
-  updateBadges();
   if(me){
     const activeTab=document.querySelector('.tab.active');
     if(activeTab)activeTab.click();
