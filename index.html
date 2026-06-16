@@ -155,16 +155,17 @@ const MX=[
 ];
 const GS=[...new Set(MX.map(m=>m.g))].sort();
 const APASS="prode2026admin";
-const BPM=1000;
+const BPM_DEFAULT=1000;
+// montos por partido se guardan en Firebase: matchAmounts[mid] = número
 
-let me=null,isAdm=false,parts={},bets={},res={},pend={},chatMsgs={},matchComments={},openComments={};
+let me=null,isAdm=false,parts={},bets={},res={},pend={},chatMsgs={},matchComments={},openComments={},matchAmounts={};
 let lastReadChat=0, lastReadMatch={};
 
 function listenData(cb){
   onValue(ref(db,'prode'),snap=>{
     const d=snap.val()||{};
     parts=d.parts||{};bets=d.bets||{};res=d.res||{};
-    chatMsgs=d.chat||{};matchComments=d.matchComments||{};
+    chatMsgs=d.chat||{};matchComments=d.matchComments||{};matchAmounts=d.matchAmounts||{};
     cb();
   });
 }
@@ -172,6 +173,7 @@ function listenData(cb){
 const svP=()=>set(ref(db,'prode/parts'),parts);
 const svB=()=>set(ref(db,'prode/bets'),bets);
 const svR=()=>set(ref(db,'prode/res'),res);
+const svA=()=>set(ref(db,'prode/matchAmounts'),matchAmounts);
 function partNames(){return Object.keys(parts);}
 
 function calcStats(){
@@ -182,7 +184,8 @@ function calcStats(){
   MX.forEach(m=>{
     const r=res[m.id];
     const apostaron=names.filter(p=>bets[p]&&bets[p][m.id]!=null);
-    const pozoBase=apostaron.length*BPM;
+    const monto=matchAmounts[m.id]||BPM_DEFAULT;
+    const pozoBase=apostaron.length*monto;
     const pozoTotal=pozoBase+carryOver;
     if(!r)return;
     const winners=apostaron.filter(p=>bets[p][m.id].h===r.h&&bets[p][m.id].a===r.a);
@@ -587,10 +590,15 @@ window.rRL=function(){
     fx.filter(m=>m.g===g).forEach(m=>{
       const r=res[m.id];
       const apostaron=partNames().filter(p=>bets[p]&&bets[p][m.id]!=null);
+      const monto=matchAmounts[m.id]||BPM_DEFAULT;
       html+=`<div class="mr">
         <div class="md">${m.d}</div>
         <div class="mt">${m.h} <span style="color:#aaa">vs</span> ${m.a}
-          <span style="font-size:11px;color:#aaa;margin-left:4px">(${apostaron.length} · $${(apostaron.length*BPM).toLocaleString('es-AR')})</span>
+          <span style="font-size:11px;color:#aaa;margin-left:4px">(${apostaron.length} · $${(apostaron.length*monto).toLocaleString('es-AR')})</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;font-size:12px">
+          <span style="color:#888">$</span>
+          <input type="number" min="0" value="${monto}" style="width:70px;font-size:12px" id="am${m.id}" placeholder="Monto">
         </div>
         <div class="si">
           <input type="number" min="0" max="20" value="${r?r.h:''}" placeholder="-" style="width:40px" id="rh${m.id}">
@@ -610,9 +618,11 @@ window.rRL=function(){
 window.svRes=async function(mid){
   const h=(document.getElementById('rh'+mid)||{}).value;
   const a=(document.getElementById('ra'+mid)||{}).value;
-  if(h===''||a===''){alert('Ingresá los dos valores.');return;}
+  const am=(document.getElementById('am'+mid)||{}).value;
+  if(h===''||a===''){alert('Ingresá los dos valores del resultado.');return;}
   res[mid]={h:parseInt(h),a:parseInt(a)};
-  await svR();showMsg('rm'+mid,'✓','ok');setTimeout(rRL,900);
+  if(am&&parseInt(am)>0)matchAmounts[mid]=parseInt(am);
+  await svR();await svA();showMsg('rm'+mid,'✓','ok');setTimeout(rRL,900);
 }
 window.dlRes=async function(mid){
   if(!confirm('¿Borrar el resultado?'))return;
