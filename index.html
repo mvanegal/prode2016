@@ -181,22 +181,51 @@ function calcStats(){
   const sc={};names.forEach(p=>sc[p]={hits:0,earned:0});
   const hist=[];
   let carryOver=0;
+  let acumSince=[]; // lista de {mid, apostaron} de los partidos que generaron el acumulado
+
   MX.forEach(m=>{
     const r=res[m.id];
     const apostaron=names.filter(p=>bets[p]&&bets[p][m.id]!=null);
     const monto=matchAmounts[m.id]||BPM_DEFAULT;
     const pozoBase=apostaron.length*monto;
     const pozoTotal=pozoBase+carryOver;
+
     if(!r)return;
+
     const winners=apostaron.filter(p=>bets[p][m.id].h===r.h&&bets[p][m.id].a===r.a);
+
     if(winners.length>0){
-      const share=Math.floor(pozoTotal/winners.length);
-      winners.forEach(p=>{sc[p].hits++;sc[p].earned+=share;});
-      hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,share,acum:false,carryOver});
+      // Calcular inversión de cada ganador desde que empezó a acumularse
+      // Incluir partidos acumulados anteriores + este partido
+      const partesAcum=[...acumSince, {mid:m.id, apostaron, monto}];
+
+      if(carryOver===0){
+        // No había acumulado, repartir en partes iguales entre ganadores
+        const share=Math.floor(pozoTotal/winners.length);
+        winners.forEach(p=>{sc[p].hits++;sc[p].earned+=share;});
+        hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,share,acum:false,carryOver,proporcional:false});
+      } else {
+        // Hay acumulado: repartir proporcionalmente según lo invertido en los partidos acumulados
+        const inversion={};
+        winners.forEach(p=>{
+          inversion[p]=partesAcum.reduce((sum,pa)=>{
+            return sum+(pa.apostaron.includes(p)?pa.monto:0);
+          },0);
+        });
+        const totalInversion=Object.values(inversion).reduce((a,b)=>a+b,0);
+        const shares={};
+        winners.forEach(p=>{
+          shares[p]=totalInversion>0?Math.floor(pozoTotal*(inversion[p]/totalInversion)):Math.floor(pozoTotal/winners.length);
+          sc[p].hits++;sc[p].earned+=shares[p];
+        });
+        hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,shares,acum:false,carryOver,proporcional:true,inversion});
+      }
       carryOver=0;
+      acumSince=[];
     } else {
       hist.push({m,r,apostaron,winners:[],pozoBase,pozoTotal,share:0,acum:true,carryOver});
       carryOver=pozoTotal;
+      acumSince.push({mid:m.id,apostaron,monto});
     }
   });
   return {sc,hist,carryOver};
@@ -659,7 +688,11 @@ function pTbl(){
       <td style="font-weight:700">${row.r.h}-${row.r.a}</td>
       <td style="font-size:11px;color:#888">${row.apostaron.length}</td>
       <td style="font-size:11px;font-weight:600">$${row.pozoTotal.toLocaleString('es-AR')}${row.carryOver>0?` <span style="font-size:10px;color:#633806">(+$${row.carryOver.toLocaleString('es-AR')} acum.)</span>`:''}</td>
-      <td style="font-size:11px;color:#888">${row.acum?'<span class="badge ba">Nadie — acumula</span>':row.winners.join(', ')}</td>
+      <td style="font-size:11px;color:#888">${row.acum?'<span class="badge ba">Nadie — acumula</span>':
+        row.proporcional?
+          row.winners.map(p=>`${p} $${row.shares[p].toLocaleString('es-AR')}`).join(', '):
+          row.winners.map(p=>`${p} $${(row.share).toLocaleString('es-AR')}`).join(', ')
+      }</td>
     </tr>`).join('')}</tbody></table>`}
   </div>`);
 }
