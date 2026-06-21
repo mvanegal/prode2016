@@ -96,7 +96,7 @@ tr:hover td{background:#FAFAF7}
 </head>
 <body>
 <div class="app" id="R">
-  <div class="loading"><span class="spin"></span>Conectando...</div>
+  <div id="R"></div>
 </div>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -752,8 +752,9 @@ function pTbl(){
   </div>`);
 }
 
-// Arrancar mostrando selección de sala
-showSala();
+// Arrancar mostrando selección de sala inmediatamente
+document.addEventListener('DOMContentLoaded',()=>showSala());
+if(document.readyState!=='loading')showSala();
 </script>
 </body>
 </html>
