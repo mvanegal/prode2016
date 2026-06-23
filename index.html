@@ -502,6 +502,7 @@ window.rBL=function(){
       const vh=pd!==undefined?pd.h:(ex!==undefined?ex.h:'');
       const va=pd!==undefined?pd.a:(ex!==undefined?ex.a:'');
       const played=!!res[m.id];
+      const disabled=played&&!isAdm;
       const vm=matchAmounts[m.id]||BPM_DEFAULT;
       html+=`<div class="mr">
         <div class="md">${m.d}</div>
@@ -509,16 +510,23 @@ window.rBL=function(){
           <span style="font-size:11px;color:#aaa;margin-left:4px">$${vm.toLocaleString('es-AR')}</span>
         </div>
         <div class="si">
-          <input type="number" min="0" max="20" value="${vh}" placeholder="-" ${played?'disabled':''} style="width:40px" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'h',this.value)">
+          <input type="number" min="0" max="20" value="${vh}" placeholder="-" ${disabled?'disabled':''} style="width:40px" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'h',this.value)">
           <span class="sep">-</span>
-          <input type="number" min="0" max="20" value="${va}" placeholder="-" ${played?'disabled':''} style="width:40px" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'a',this.value)">
+          <input type="number" min="0" max="20" value="${va}" placeholder="-" ${disabled?'disabled':''} style="width:40px" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'a',this.value)">
         </div>
+        ${isAdm&&ex?`<button style="font-size:11px;padding:3px 8px;color:#c00" onclick="borrarApuesta('${pl.replace(/'/g,"\\'")}',${m.id})">🗑</button>`:''}
         ${played?`<span class="badge bd">Jugado</span>`:(ex?`<span class="badge bo">OK</span>`:`<span class="badge bp">—</span>`)}
       </div>`;
     });
     html+='</div>';
   });
   setHTML('bL',html||'<div class="card"><div class="empty">No hay partidos.</div></div>');
+}
+
+window.borrarApuesta=async function(pl,mid){
+  if(!confirm('¿Borrar la apuesta de '+pl+' para este partido?'))return;
+  if(bets[pl])delete bets[pl][mid];
+  await svB();rBL();
 }
 
 window.sp=function(pl,mid,field,val){
