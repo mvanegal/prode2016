@@ -397,6 +397,8 @@ function partList(){
 function pAdm(){
   const names=partNames();
   const {carryOver}=calcStats();
+  const GF=document.getElementById('admGF')?document.getElementById('admGF').value:'';
+  const proximos=MX.filter(m=>!res[m.id]&&(!GF||m.g===GF)).slice(0,20);
   setHTML('PC',`<div class="card"><h2>Participantes (${names.length})</h2>
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:flex-end">
       <div><div style="font-size:11px;color:#666;margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Nombre</div>
@@ -410,6 +412,27 @@ function pAdm(){
     </div>
     <div id="pList">${partList()}</div>
   </div>
+  <div class="card">
+    <h2>💰 Monto por partido</h2>
+    <div style="font-size:12px;color:#888;margin-bottom:10px">Definí cuánto apuesta cada participante en cada partido. Por defecto es $1.000.</div>
+    <div style="margin-bottom:8px">
+      <select id="admGF" onchange="pAdm()" style="max-width:160px"><option value="">Todos los grupos</option>${GS.map(g=>`<option${GF===g?' selected':''}>${g}</option>`).join('')}</select>
+    </div>
+    ${proximos.map(m=>{
+      const monto=matchAmounts[m.id]||BPM_DEFAULT;
+      return`<div class="mr">
+        <div class="md">${m.d}</div>
+        <div class="mt">${m.h} <span style="color:#aaa">vs</span> ${m.a}</div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:12px;color:#888">$</span>
+          <input type="number" min="0" value="${monto}" style="width:80px;font-size:13px" id="ma${m.id}">
+          <button style="font-size:11px;padding:4px 9px" onclick="svMonto(${m.id})">Guardar</button>
+          <span class="msg" id="mm${m.id}"></span>
+        </div>
+      </div>`;
+    }).join('')}
+    ${proximos.length===0?'<div class="empty">No hay partidos pendientes.</div>':''}
+  </div>
   <div class="card"><div class="sg">
     <div class="sc"><div class="sl">Participantes</div><div class="sv">${names.length}</div></div>
     <div class="sc"><div class="sl">Resultados cargados</div><div class="sv">${Object.keys(res).length}/96</div></div>
@@ -418,6 +441,14 @@ function pAdm(){
   </div>
   <div style="font-size:12px;color:#888;margin-top:4px">💡 Sala: <strong>${sala}</strong> · Compartí el PIN a cada participante en privado.</div>
   </div>`);
+}
+
+window.svMonto=async function(mid){
+  const v=document.getElementById('ma'+mid);
+  if(!v||!v.value||parseInt(v.value)<=0){showMsg('mm'+mid,'Ingresá un monto válido.','er');return;}
+  matchAmounts[mid]=parseInt(v.value);
+  await svA();
+  showMsg('mm'+mid,'✓','ok');
 }
 
 window.addP=async function(){
