@@ -187,61 +187,55 @@ function pozoPartido(mid){
 
 function calcStats(){
   const names=partNames();
-  const sc={};names.forEach(p=>sc[p]={hits:0,earned:0,invested:0});
+  const sc={};names.forEach(p=>sc[p]={hits:0,nearHits:0,earned:0,invested:0});
   const hist=[];
-  let carryOver=0;
-  let acumSince=[];
 
   MX.forEach(m=>{
     const r=res[m.id];
     const apostaron=names.filter(p=>bets[p]&&bets[p][m.id]!=null);
     const monto=matchAmounts[m.id]||BPM_DEFAULT;
-    const pozoBase=apostaron.length*monto;
-    const pozoTotal=pozoBase+carryOver;
+    const pozo=apostaron.length*monto;
 
     apostaron.forEach(p=>{sc[p].invested+=monto;});
 
     if(!r)return;
 
-    const winners=apostaron.filter(p=>bets[p][m.id].h===r.h&&bets[p][m.id].a===r.a);
+    // 1. Buscar ganadores exactos
+    const exactos=apostaron.filter(p=>bets[p][m.id].h===r.h&&bets[p][m.id].a===r.a);
 
-    if(winners.length>0){
-      const decision=pozoDecisions[m.id];
+    let winners=[];
+    let tipoGanador='exacto';
 
-      if(decision==='acumular'){
-        hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,acum:false,acumDecision:true,carryOver});
-        carryOver=pozoTotal;
-        acumSince.push({mid:m.id,apostaron});
-      } else if(decision==='cobrar'||carryOver===0){
-        // Repartir proporcionalmente según monto apostado por cada ganador
-        // considerando todos los partidos acumulados + este
-        const partesAcum=[...acumSince,{mid:m.id,apostaron}];
-        const inversion={};
-        winners.forEach(p=>{
-          inversion[p]=partesAcum.reduce((sum,pa)=>{
-            const m2=matchAmounts[pa.mid]||BPM_DEFAULT;
-            return sum+(pa.apostaron.includes(p)?m2:0);
-          },0);
-        });
-        const totalInv=Object.values(inversion).reduce((a,b)=>a+b,0);
-        const shares={};
-        winners.forEach(p=>{
-          shares[p]=totalInv>0?Math.floor(pozoTotal*(inversion[p]/totalInv)):Math.floor(pozoTotal/winners.length);
-          sc[p].hits++;sc[p].earned+=shares[p];
-        });
-        hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,shares,acum:false,carryOver,inversion});
-        carryOver=0;acumSince=[];
-      } else {
-        // Pendiente de decisión admin (cuando hay carryOver)
-        hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,acum:false,pendingDecision:true,carryOver});
-      }
+    if(exactos.length>0){
+      winners=exactos;
     } else {
-      hist.push({m,r,apostaron,winners:[],pozoBase,pozoTotal,acum:true,carryOver});
-      carryOver=pozoTotal;
-      acumSince.push({mid:m.id,apostaron});
+      // 2. Buscar el más aproximado (menor diferencia sumando |h-rh|+|a-ra|)
+      let minDiff=Infinity;
+      apostaron.forEach(p=>{
+        const b=bets[p][m.id];
+        const diff=Math.abs(b.h-r.h)+Math.abs(b.a-r.a);
+        if(diff<minDiff)minDiff=diff;
+      });
+      winners=apostaron.filter(p=>{
+        const b=bets[p][m.id];
+        return Math.abs(b.h-r.h)+Math.abs(b.a-r.a)===minDiff;
+      });
+      tipoGanador='aproximado';
     }
+
+    // Repartir pozo proporcionalmente según monto apostado
+    const totalInv=winners.reduce((sum,p)=>sum+monto,0);
+    const shares={};
+    winners.forEach(p=>{
+      shares[p]=Math.floor(pozo*(monto/totalInv));
+      if(tipoGanador==='exacto'){sc[p].hits++;} else {sc[p].nearHits++;}
+      sc[p].earned+=shares[p];
+    });
+
+    hist.push({m,r,apostaron,winners,pozo,shares,tipoGanador});
   });
-  return {sc,hist,carryOver};
+
+  return {sc,hist,carryOver:0};
 }
 
 function calcPot(){return calcStats().carryOver;}
@@ -748,11 +742,12 @@ function pTbl(){
   </div>
   <div class="card"><h2>Clasificación</h2>
     ${!names.length||!played?'<div class="empty">Aún no hay resultados.</div>':`
-    <table><thead><tr><th>#</th><th>Participante</th><th>Aciertos</th><th>Invertido</th><th>Ganado</th></tr></thead><tbody>
+    <table><thead><tr><th>#</th><th>Participante</th><th>Exactos</th><th>Aprox.</th><th>Invertido</th><th>Ganado</th></tr></thead><tbody>
     ${srt.map((p,i)=>`<tr${!isAdm&&p===me?' class="hirow"':''}>
       <td style="font-weight:700;color:#aaa">${i===0&&sc[p].earned>0?'🏆':(i+1)}</td>
       <td>${p}${!isAdm&&p===me?' <span style="font-size:10px;color:#185FA5">(vos)</span>':''}</td>
       <td style="font-weight:600">${sc[p].hits}</td>
+      <td style="color:#888">${sc[p].nearHits}</td>
       <td style="color:#888">$${sc[p].invested.toLocaleString('es-AR')}</td>
       <td style="font-weight:${sc[p].earned>0?700:400}">$${sc[p].earned.toLocaleString('es-AR')}</td>
     </tr>`).join('')}</tbody></table>`}
@@ -763,17 +758,11 @@ function pTbl(){
     ${hist.slice().reverse().map(row=>`<tr>
       <td style="font-size:11px">${row.m.h} vs ${row.m.a}</td>
       <td style="font-weight:700">${row.r.h}-${row.r.a}</td>
-      <td style="font-size:11px;font-weight:600">$${row.pozoTotal.toLocaleString('es-AR')}${row.carryOver>0?` <span style="font-size:10px;color:#633806">(+$${row.carryOver.toLocaleString('es-AR')})</span>`:''}</td>
-      <td style="font-size:11px;color:#888">${
-        row.acum?'<span class="badge ba">Nadie — acumula</span>':
-        row.acumDecision?`<span class="badge ba">Ganaron: ${row.winners.join(', ')} — sigue acumulando</span>`:
-        row.pendingDecision&&isAdm?`<span style="color:#3B6D11;font-weight:600">Ganaron: ${row.winners.join(', ')}</span><br>
-          <button onclick="decidirPozo(${row.m.id},'cobrar')" style="font-size:11px;padding:3px 8px;margin-top:4px;border-color:#3B6D11;color:#3B6D11">✓ Cobrar</button>
-          <button onclick="decidirPozo(${row.m.id},'acumular')" style="font-size:11px;padding:3px 8px;margin-top:4px;margin-left:4px;border-color:#633806;color:#633806">→ Seguir acumulando</button>`:
-        row.pendingDecision?`Ganaron: ${row.winners.join(', ')} — pendiente decisión admin`:
-        row.shares?row.winners.map(p=>`${p} $${row.shares[p].toLocaleString('es-AR')}`).join(', '):
-        row.winners.join(', ')
-      }</td>
+      <td style="font-size:11px;font-weight:600">$${row.pozo.toLocaleString('es-AR')}</td>
+      <td style="font-size:11px;color:#888">
+        ${row.winners.map(p=>`${p} $${row.shares[p].toLocaleString('es-AR')}`).join(', ')}
+        ${row.tipoGanador==='aproximado'?` <span class="badge bp">aprox.</span>`:''}
+      </td>
     </tr>`).join('')}</tbody></table>`}
   </div>`);
 }
