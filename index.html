@@ -11,7 +11,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .hdr{background:#fff;border:1px solid #E5E5E0;border-radius:12px;padding:12px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .hdr h1{font-size:17px;font-weight:600}
 .tabs{display:flex;gap:3px;margin-bottom:10px;background:#fff;border:1px solid #E5E5E0;border-radius:8px;padding:3px;flex-wrap:wrap}
-.tab{flex:1;padding:7px 4px;border:none;background:transparent;border-radius:6px;cursor:pointer;font-size:12px;color:#666;font-family:inherit;transition:all .12s;min-width:55px;position:relative}
+.tab{flex:1;padding:7px 4px;border:none;background:transparent;border-radius:6px;cursor:pointer;font-size:12px;color:#666;font-family:inherit;transition:all .12s;min-width:55px}
 .tab.active{background:#F0F0EB;color:#1a1a1a;font-weight:600}
 .unread{display:inline-block;background:#e00;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 5px;vertical-align:middle;margin-left:2px}
 .card{background:#fff;border:1px solid #E5E5E0;border-radius:12px;padding:14px 16px;margin-bottom:10px}
@@ -29,7 +29,7 @@ button:hover{background:#F0F0EB}
 .fg label{display:block;font-size:11px;color:#666;margin-bottom:3px;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
 .fg input,.fg select{width:100%}
 .gh{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;padding:2px 0;margin:10px 0 4px;border-bottom:1px solid #F0F0EB}
-.mr{display:flex;align-items:center;gap:6px;padding:7px 2px;border-bottom:1px solid #F5F5F0;flex-wrap:wrap}
+.mr{display:flex;align-items:center;gap:6px;padding:8px 2px;border-bottom:1px solid #F5F5F0;flex-wrap:wrap}
 .mr:last-child{border-bottom:none}
 .mt{flex:1;font-size:13px;min-width:130px}
 .md{font-size:11px;color:#888;min-width:85px}
@@ -52,7 +52,6 @@ tr:last-child td{border-bottom:none}
 tr:hover td{background:#FAFAF7}
 .pill{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#F0F0EB;border-radius:20px;font-size:12px;margin:2px;font-weight:500}
 .pill .rm{cursor:pointer;color:#aaa;font-size:16px;line-height:1}
-.pill .rm:hover{color:#e00}
 .empty{text-align:center;color:#aaa;font-size:13px;padding:20px 0}
 .divider{text-align:center;font-size:12px;color:#aaa;margin:12px 0;position:relative}
 .divider::before{content:'';position:absolute;top:50%;left:0;right:0;height:1px;background:#E5E5E0}
@@ -66,15 +65,15 @@ tr:hover td{background:#FAFAF7}
 .pot-val{font-size:18px;font-weight:700}
 .spin{display:inline-block;width:16px;height:16px;border:2px solid #eee;border-top-color:#999;border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes sp{to{transform:rotate(360deg)}}
-.loading{text-align:center;padding:60px 20px;color:#aaa;font-size:14px}
 .part-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #F5F5F0;flex-wrap:wrap}
 .part-row:last-child{border-bottom:none}
 .part-name{flex:1;font-size:13px;font-weight:500}
 .pin-badge{font-size:11px;color:#888;background:#F5F5F0;padding:2px 8px;border-radius:10px}
-.score-display{display:inline-block;font-weight:700;font-size:13px;background:#F0F0EB;padding:2px 10px;border-radius:8px;min-width:42px;text-align:center}
+.score-display{display:inline-block;font-weight:700;font-size:12px;background:#F0F0EB;padding:2px 8px;border-radius:8px;min-width:38px;text-align:center}
 .score-display.hit{background:#EAF3DE;color:#3B6D11}
 .score-display.miss{background:#F5F5F0;color:#888}
 .score-display.empty-bet{background:#F5F5F0;color:#ccc}
+.monto-input{width:70px;font-size:12px;text-align:center}
 .chat-box{height:360px;overflow-y:auto;border:1px solid #E5E5E0;border-radius:10px;padding:10px;background:#FAFAF8;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
 .chat-msg{display:flex;flex-direction:column;max-width:80%}
 .chat-msg.mine{align-self:flex-end;align-items:flex-end}
@@ -88,16 +87,12 @@ tr:hover td{background:#FAFAF7}
 .match-comments{margin-top:8px;padding-top:8px;border-top:1px solid #F0F0EB}
 .match-comment-item{padding:5px 0;border-bottom:1px solid #F5F5F0;font-size:12px}
 .match-comment-item:last-child{border-bottom:none}
-.match-comment-author{font-weight:600}
-.match-comment-time{font-size:10px;color:#aaa;margin-left:6px}
 .toggle-comments{font-size:11px;padding:3px 8px;color:#666}
 @media(max-width:480px){.md{display:none}.mt{min-width:100px}}
 </style>
 </head>
 <body>
-<div class="app" id="R">
-  <div id="R"></div>
-</div>
+<div class="app" id="R"></div>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
@@ -155,21 +150,19 @@ const MX=[
 ];
 const GS=[...new Set(MX.map(m=>m.g))].sort();
 const APASS="prode2026admin";
-const BPM_DEFAULT=1000;
-// montos por partido se guardan en Firebase: matchAmounts[mid] = número
 
-let sala=null; // código de sala activa
+// bets[player][mid] = { h, a, monto }  (monto = lo que apostó esa persona en ese partido)
+let sala=null;
 function dbPath(sub){return `salas/${sala}/${sub}`;}
 
-
-let me=null,isAdm=false,parts={},bets={},res={},pend={},chatMsgs={},matchComments={},openComments={},matchAmounts={},pozoDecisions={};
-let lastReadChat=0, lastReadMatch={};
+let me=null,isAdm=false,parts={},bets={},res={},pend={},chatMsgs={},matchComments={},openComments={},pozoDecisions={};
+let lastReadChat=0,lastReadMatch={};
 
 function listenData(cb){
-  onValue(ref(db,dbPath('')), snap=>{
+  onValue(ref(db,dbPath('')),snap=>{
     const d=snap.val()||{};
     parts=d.parts||{};bets=d.bets||{};res=d.res||{};
-    chatMsgs=d.chat||{};matchComments=d.matchComments||{};matchAmounts=d.matchAmounts||{};pozoDecisions=d.pozoDecisions||{};
+    chatMsgs=d.chat||{};matchComments=d.matchComments||{};pozoDecisions=d.pozoDecisions||{};
     cb();
   });
 }
@@ -177,68 +170,72 @@ function listenData(cb){
 const svP=()=>set(ref(db,dbPath('parts')),parts);
 const svB=()=>set(ref(db,dbPath('bets')),bets);
 const svR=()=>set(ref(db,dbPath('res')),res);
-const svA=()=>set(ref(db,dbPath('matchAmounts')),matchAmounts);
 const svD=()=>set(ref(db,dbPath('pozoDecisions')),pozoDecisions);
+
 function partNames(){return Object.keys(parts);}
+
+// Calcula pozo total de un partido = suma de montos apostados por todos
+function pozoPartido(mid){
+  return partNames().reduce((sum,p)=>{
+    const b=bets[p]&&bets[p][mid];
+    return sum+(b&&b.monto?b.monto:0);
+  },0);
+}
 
 function calcStats(){
   const names=partNames();
-  const sc={};names.forEach(p=>sc[p]={hits:0,earned:0});
+  const sc={};names.forEach(p=>sc[p]={hits:0,earned:0,invested:0});
   const hist=[];
   let carryOver=0;
   let acumSince=[];
 
   MX.forEach(m=>{
     const r=res[m.id];
-    const apostaron=names.filter(p=>bets[p]&&bets[p][m.id]!=null);
-    const monto=matchAmounts[m.id]||BPM_DEFAULT;
-    const pozoBase=apostaron.length*monto;
+    const apostaron=names.filter(p=>bets[p]&&bets[p][m.id]&&bets[p][m.id].h!==undefined);
+    const pozoBase=apostaron.reduce((sum,p)=>sum+(bets[p][m.id].monto||0),0);
     const pozoTotal=pozoBase+carryOver;
+
+    // Sumar inversión total por persona
+    apostaron.forEach(p=>{sc[p].invested+=(bets[p][m.id].monto||0);});
 
     if(!r)return;
 
     const winners=apostaron.filter(p=>bets[p][m.id].h===r.h&&bets[p][m.id].a===r.a);
 
     if(winners.length>0){
-      // Verificar si el admin decidió seguir acumulando
-      const decision=pozoDecisions[m.id]; // 'cobrar' | 'acumular' | undefined
-      
+      const decision=pozoDecisions[m.id];
+
       if(decision==='acumular'){
-        // Admin decidió no cobrar, sigue acumulando
-        hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,share:0,acum:false,acumDecision:true,carryOver});
+        hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,acum:false,acumDecision:true,carryOver});
         carryOver=pozoTotal;
-        acumSince.push({mid:m.id,apostaron,monto});
+        acumSince.push({mid:m.id,apostaron});
       } else if(decision==='cobrar'||carryOver===0){
-        // Cobrar: repartir
-        if(carryOver===0){
-          const share=Math.floor(pozoTotal/winners.length);
-          winners.forEach(p=>{sc[p].hits++;sc[p].earned+=share;});
-          hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,share,acum:false,carryOver,proporcional:false});
-        } else {
-          const partesAcum=[...acumSince,{mid:m.id,apostaron,monto}];
-          const inversion={};
-          winners.forEach(p=>{
-            inversion[p]=partesAcum.reduce((sum,pa)=>sum+(pa.apostaron.includes(p)?pa.monto:0),0);
-          });
-          const totalInversion=Object.values(inversion).reduce((a,b)=>a+b,0);
-          const shares={};
-          winners.forEach(p=>{
-            shares[p]=totalInversion>0?Math.floor(pozoTotal*(inversion[p]/totalInversion)):Math.floor(pozoTotal/winners.length);
-            sc[p].hits++;sc[p].earned+=shares[p];
-          });
-          hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,shares,acum:false,carryOver,proporcional:true,inversion});
-        }
-        carryOver=0;
-        acumSince=[];
+        // Repartir proporcionalmente según monto apostado por cada ganador
+        // considerando todos los partidos acumulados + este
+        const partesAcum=[...acumSince,{mid:m.id,apostaron}];
+        const inversion={};
+        winners.forEach(p=>{
+          inversion[p]=partesAcum.reduce((sum,pa)=>{
+            const b=bets[p]&&bets[p][pa.mid];
+            return sum+(b&&b.monto?b.monto:0);
+          },0);
+        });
+        const totalInv=Object.values(inversion).reduce((a,b)=>a+b,0);
+        const shares={};
+        winners.forEach(p=>{
+          shares[p]=totalInv>0?Math.floor(pozoTotal*(inversion[p]/totalInv)):Math.floor(pozoTotal/winners.length);
+          sc[p].hits++;sc[p].earned+=shares[p];
+        });
+        hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,shares,acum:false,carryOver,inversion});
+        carryOver=0;acumSince=[];
       } else {
-        // Sin decisión aún: hay ganadores con pozo acumulado, pendiente de decisión admin
-        hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,share:0,acum:false,pendingDecision:true,carryOver});
-        // No modificamos carryOver hasta que el admin decida
+        // Pendiente de decisión admin (cuando hay carryOver)
+        hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,acum:false,pendingDecision:true,carryOver});
       }
     } else {
-      hist.push({m,r,apostaron,winners:[],pozoBase,pozoTotal,share:0,acum:true,carryOver});
+      hist.push({m,r,apostaron,winners:[],pozoBase,pozoTotal,acum:true,carryOver});
       carryOver=pozoTotal;
-      acumSince.push({mid:m.id,apostaron,monto});
+      acumSince.push({mid:m.id,apostaron});
     }
   });
   return {sc,hist,carryOver};
@@ -255,9 +252,7 @@ function fmtTime(ts){
 function setHTML(id,h){const e=document.getElementById(id);if(e)e.innerHTML=h;}
 function showMsg(id,t,c){const e=document.getElementById(id);if(!e)return;e.textContent=t;e.className='msg '+(c||'');setTimeout(()=>{if(e)e.textContent='';},2500);}
 
-function unreadChat(){
-  return Object.values(chatMsgs).filter(m=>m.author!==me&&m.ts>lastReadChat).length;
-}
+function unreadChat(){return Object.values(chatMsgs).filter(m=>m.author!==me&&m.ts>lastReadChat).length;}
 function unreadMatch(){
   let t=0;
   Object.keys(matchComments).forEach(mid=>{
@@ -266,16 +261,15 @@ function unreadMatch(){
   });
   return t;
 }
-
 function updateBadges(){
   const tc=document.getElementById('t-chat');
   const tv=document.getElementById('t-ver');
-  const uc=unreadChat();
-  const um=unreadMatch();
+  const uc=unreadChat(),um=unreadMatch();
   if(tc)tc.innerHTML='💬 Chat'+(uc>0?` <span class="unread">${uc}</span>`:'');
   if(tv)tv.innerHTML='👁 Ver'+(um>0?` <span class="unread">${um}</span>`:'');
 }
 
+// SALA
 function showSala(){
   document.getElementById('R').innerHTML=`
   <div class="hdr"><h1>⚽ Prode Mundial 2026</h1></div>
@@ -288,29 +282,26 @@ function showSala(){
     <button class="btn-p" style="width:100%;padding:9px" onclick="entrarSala()">Continuar</button>
     <div id="salaErr" style="font-size:12px;color:#c00;text-align:center;margin-top:8px;min-height:14px"></div>
   </div></div>`;
-  document.getElementById('salaInput').focus();
+  setTimeout(()=>{const i=document.getElementById('salaInput');if(i)i.focus();},100);
 }
 
 window.entrarSala=function(){
   const s=(document.getElementById('salaInput').value||'').trim().toLowerCase().replace(/\s+/g,'_');
   if(!s){document.getElementById('salaErr').textContent='Ingresá un código de sala.';return;}
   sala=s;
+  document.getElementById('R').innerHTML='<div style="text-align:center;padding:60px;color:#aaa"><span class="spin"></span> Conectando...</div>';
   listenData(()=>{
     refreshHeader();
-    if(me){
-      const activeTab=document.querySelector('.tab.active');
-      if(activeTab)activeTab.click();
-      else showApp();
-    } else {
-      showLogin();
-    }
+    if(me){const a=document.querySelector('.tab.active');if(a)a.click();else showApp();}
+    else showLogin();
   });
 }
 
+// LOGIN
 function showLogin(){
   const names=partNames();
   document.getElementById('R').innerHTML=`
-  <div class="hdr"><h1>⚽ Prode Mundial 2026</h1></div>
+  <div class="hdr"><h1>⚽ Prode Mundial 2026</h1><span style="font-size:12px;color:#aaa">sala: ${sala} <button style="font-size:11px;padding:2px 7px;margin-left:4px" onclick="cambiarSala()">Cambiar</button></span></div>
   <div class="login-wrap"><div class="login-box">
     <h2>Ingresar al prode</h2>
     <p>Seleccioná tu nombre e ingresá tu PIN</p>
@@ -353,7 +344,7 @@ function showApp(){
     <div style="text-align:right">
       <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-bottom:1px;font-size:12px;color:#666">
         ${isAdm?'<span class="badge bo">Admin</span>':''}<strong style="color:#1a1a1a;font-size:13px">${me}</strong>
-        <span style="font-size:11px;color:#aaa">· sala: ${sala}</span>
+        <span style="font-size:11px;color:#aaa">· ${sala}</span>
         <button style="font-size:11px;padding:3px 8px" onclick="lgOut()">Salir</button>
       </div>
       <div class="pot-tag">Pozo acumulado</div>
@@ -389,6 +380,7 @@ window.sw=function(panel,el){
   else if(panel==='res')pRes();
 }
 
+// ADMIN
 function partList(){
   const names=partNames();
   if(!names.length)return'<span style="font-size:12px;color:#aaa">Sin participantes aún.</span>';
@@ -421,7 +413,7 @@ function pAdm(){
     <div class="sc"><div class="sl">Partidos totales</div><div class="sv">96</div></div>
     <div class="sc"><div class="sl">Pozo acumulado</div><div class="sv" style="font-size:15px;color:#BA7517">$${carryOver.toLocaleString('es-AR')}</div></div>
   </div>
-  <div style="font-size:12px;color:#888;margin-top:4px">💡 Compartí el PIN a cada participante en privado.</div>
+  <div style="font-size:12px;color:#888;margin-top:4px">💡 Sala: <strong>${sala}</strong> · Compartí el PIN a cada participante en privado.</div>
   </div>`);
 }
 
@@ -441,6 +433,7 @@ window.rmP=async function(n){
   delete parts[n];delete bets[n];await svP();await svB();setHTML('pList',partList());
 }
 
+// APUESTAS — ahora cada apuesta incluye monto individual
 function getPlayer(){return isAdm?(document.getElementById('bP')||{}).value||'':me;}
 
 function pBet(){
@@ -480,16 +473,21 @@ window.rBL=function(){
       const pd=pend[pl][m.id];
       const vh=pd!==undefined?pd.h:(ex!==undefined?ex.h:'');
       const va=pd!==undefined?pd.a:(ex!==undefined?ex.a:'');
+      const vm=pd!==undefined?pd.monto:(ex&&ex.monto?ex.monto:'');
       const played=!!res[m.id];
       html+=`<div class="mr">
         <div class="md">${m.d}</div>
         <div class="mt">${m.h} <span style="color:#aaa">vs</span> ${m.a}</div>
         <div class="si">
-          <input type="number" min="0" max="20" value="${vh}" placeholder="-" ${played?'disabled':''} style="width:40px" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},this.value,null)">
+          <input type="number" min="0" max="20" value="${vh}" placeholder="-" ${played?'disabled':''} style="width:40px" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'h',this.value)">
           <span class="sep">-</span>
-          <input type="number" min="0" max="20" value="${va}" placeholder="-" ${played?'disabled':''} style="width:40px" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},null,this.value)">
+          <input type="number" min="0" max="20" value="${va}" placeholder="-" ${played?'disabled':''} style="width:40px" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'a',this.value)">
         </div>
-        ${played?`<span class="badge bd">Jugado</span>`:(ex?`<span class="badge bo">OK</span>`:`<span class="badge bp">—</span>`)}
+        <div style="display:flex;align-items:center;gap:3px">
+          <span style="font-size:12px;color:#888">$</span>
+          <input type="number" min="0" value="${vm}" placeholder="monto" ${played?'disabled':''} class="monto-input" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'monto',this.value)">
+        </div>
+        ${played?`<span class="badge bd">Jugado</span>`:(ex&&ex.monto?`<span class="badge bo">OK $${ex.monto.toLocaleString('es-AR')}</span>`:`<span class="badge bp">—</span>`)}
       </div>`;
     });
     html+='</div>';
@@ -497,11 +495,10 @@ window.rBL=function(){
   setHTML('bL',html||'<div class="card"><div class="empty">No hay partidos.</div></div>');
 }
 
-window.sp=function(pl,mid,h,a){
+window.sp=function(pl,mid,field,val){
   if(!pend[pl])pend[pl]={};
-  if(!pend[pl][mid])pend[pl][mid]={h:'',a:''};
-  if(h!==null)pend[pl][mid].h=h;
-  if(a!==null)pend[pl][mid].a=a;
+  if(!pend[pl][mid])pend[pl][mid]={h:'',a:'',monto:''};
+  pend[pl][mid][field]=val;
 }
 
 window.svBets=async function(){
@@ -511,12 +508,15 @@ window.svBets=async function(){
   let n=0;
   Object.keys(pend[pl]||{}).forEach(mid=>{
     const b=pend[pl][mid];
-    if(b.h!==''&&b.a!==''&&b.h!==null&&b.a!==null){bets[pl][mid]={h:parseInt(b.h),a:parseInt(b.a)};n++;}
+    if(b.h!==''&&b.a!==''&&b.h!==null&&b.a!==null&&b.monto!==''&&b.monto>0){
+      bets[pl][mid]={h:parseInt(b.h),a:parseInt(b.a),monto:parseInt(b.monto)};n++;
+    }
   });
   pend[pl]={};await svB();rBL();
   showMsg('bMsg',n+' apuesta'+(n!==1?'s':'')+' guardada'+(n!==1?'s':'')+' ✓','ok');
 }
 
+// VER APUESTAS
 function pVer(){
   const names=partNames();
   setHTML('PC',`<div class="card" style="margin-bottom:8px">
@@ -543,9 +543,9 @@ window.rVL=function(){
   gs.forEach(g=>{
     html+=`<div class="card" style="margin-bottom:8px"><div class="gh">Grupo ${g}</div><div style="overflow-x:auto">
     <table><thead><tr>
-      <th style="min-width:130px">Partido</th>
-      ${names.map(p=>`<th style="text-align:center;min-width:65px">${p}${p===me?' <span style="font-size:10px;color:#185FA5">(vos)</span>':''}</th>`).join('')}
-      <th style="text-align:center">Resultado</th><th></th>
+      <th style="min-width:120px">Partido</th>
+      ${names.map(p=>`<th style="text-align:center;min-width:70px">${p}${p===me?' <span style="font-size:10px;color:#185FA5">(vos)</span>':''}</th>`).join('')}
+      <th style="text-align:center">Res.</th><th></th>
     </tr></thead><tbody>`;
     fx.filter(m=>m.g===g).forEach(m=>{
       const r=res[m.id];
@@ -554,13 +554,13 @@ window.rVL=function(){
       const lr=lastReadMatch[m.id]||0;
       const unread=mc.filter(c=>c.author!==me&&c.ts>lr).length;
       html+=`<tr>
-        <td style="font-size:12px"><div style="font-weight:500">${m.h} vs ${m.a}</div><div style="font-size:11px;color:#aaa">${m.d}</div></td>
+        <td style="font-size:11px"><div style="font-weight:500">${m.h} vs ${m.a}</div><div style="color:#aaa">${m.d}</div></td>
         ${names.map(p=>{
           const b=bets[p]&&bets[p][m.id];
-          if(!b)return`<td style="text-align:center"><span class="score-display empty-bet">—</span></td>`;
+          if(!b||b.h===undefined)return`<td style="text-align:center"><span class="score-display empty-bet">—</span></td>`;
           const isHit=r&&b.h===r.h&&b.a===r.a;
           const cls=r?(isHit?'hit':'miss'):'';
-          return`<td style="text-align:center"><span class="score-display ${cls}">${b.h}-${b.a}</span></td>`;
+          return`<td style="text-align:center"><span class="score-display ${cls}">${b.h}-${b.a}</span>${b.monto?`<div style="font-size:10px;color:#888">$${b.monto.toLocaleString('es-AR')}</div>`:''}`;
         }).join('')}
         <td style="text-align:center">${r?`<span class="score-display" style="background:#1a1a1a;color:#fff">${r.h}-${r.a}</span>`:`<span style="font-size:11px;color:#aaa">—</span>`}</td>
         <td><button class="toggle-comments" onclick="toggleCom(${m.id})">💬${unread>0?` <span class="unread">${unread}</span>`:mc.length?' '+mc.length:''}</button></td>
@@ -570,9 +570,8 @@ window.rVL=function(){
           <div class="match-comments">
             <div id="mclist-${m.id}">
               ${mc.length?mc.sort((a,b)=>a.ts-b.ts).map(c=>`<div class="match-comment-item">
-                <span class="match-comment-author">${c.author}:</span>
-                <span style="color:#444;margin-left:4px">${c.text}</span>
-                <span class="match-comment-time">${fmtTime(c.ts)}</span>
+                <strong>${c.author}:</strong> <span style="color:#444">${c.text}</span>
+                <span style="font-size:10px;color:#aaa;margin-left:6px">${fmtTime(c.ts)}</span>
               </div>`).join(''):'<div style="font-size:12px;color:#aaa;padding:4px 0">Sin comentarios aún.</div>'}
             </div>
             <div style="display:flex;gap:6px;margin-top:8px">
@@ -593,54 +592,15 @@ window.toggleCom=function(mid){
   if(openComments[mid]){lastReadMatch[mid]=Date.now();updateBadges();}
   const row=document.getElementById('cmrow-'+mid);
   if(row)row.style.display=openComments[mid]?'':'none';
-  const btn=row&&row.previousElementSibling&&row.previousElementSibling.querySelector('.toggle-comments');
-  if(btn){
-    const mc=matchComments[mid]?Object.values(matchComments[mid]):[];
-    btn.innerHTML='💬'+(mc.length?' '+mc.length:'');
-  }
 }
-
 window.sendMC=async function(mid){
-  const inp=document.getElementById('mci-'+mid);
-  if(!inp)return;
+  const inp=document.getElementById('mci-'+mid);if(!inp)return;
   const txt=inp.value.trim();if(!txt)return;
   await push(ref(db,dbPath('matchComments/'+mid)),{author:me,text:txt,ts:Date.now()});
   inp.value='';
 }
 
-window.decidirPozo=async function(mid,decision){
-  pozoDecisions[mid]=decision;
-  await svD();
-}
-
-function pChat(){
-  const msgs=Object.values(chatMsgs).sort((a,b)=>a.ts-b.ts);
-  setHTML('PC',`<div class="card">
-    <h2>💬 Chat general</h2>
-    <div class="chat-box" id="chatBox">
-      ${msgs.length?msgs.map(m=>`
-        <div class="chat-msg ${m.author===me?'mine':'other'}">
-          <div class="chat-bubble">${m.text}</div>
-          <div class="chat-meta">${m.author===me?'Vos':m.author} · ${fmtTime(m.ts)}</div>
-        </div>`).join(''):'<div class="empty">¡Nadie comentó aún. Sé el primero!</div>'}
-    </div>
-    <div class="chat-input-row">
-      <textarea id="chatInput" placeholder="Escribí un mensaje..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
-      <button class="btn-p" onclick="sendChat()" style="padding:8px 14px">Enviar</button>
-    </div>
-  </div>`);
-  const box=document.getElementById('chatBox');
-  if(box)box.scrollTop=box.scrollHeight;
-  updateBadges();
-}
-
-window.sendChat=async function(){
-  const inp=document.getElementById('chatInput');if(!inp)return;
-  const txt=inp.value.trim();if(!txt)return;
-  await push(ref(db,dbPath('chat')),{author:me,text:txt,ts:Date.now()});
-  inp.value='';
-}
-
+// RESULTADOS
 function pRes(){
   setHTML('PC',`<div class="card" style="margin-bottom:8px">
     <div class="fr">
@@ -669,16 +629,11 @@ window.rRL=function(){
     html+=`<div class="card" style="margin-bottom:8px"><div class="gh">Grupo ${g}</div>`;
     fx.filter(m=>m.g===g).forEach(m=>{
       const r=res[m.id];
-      const apostaron=partNames().filter(p=>bets[p]&&bets[p][m.id]!=null);
-      const monto=matchAmounts[m.id]||BPM_DEFAULT;
+      const pozo=pozoPartido(m.id);
       html+=`<div class="mr">
         <div class="md">${m.d}</div>
         <div class="mt">${m.h} <span style="color:#aaa">vs</span> ${m.a}
-          <span style="font-size:11px;color:#aaa;margin-left:4px">(${apostaron.length} · $${(apostaron.length*monto).toLocaleString('es-AR')})</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:4px;font-size:12px">
-          <span style="color:#888">$</span>
-          <input type="number" min="0" value="${monto}" style="width:70px;font-size:12px" id="am${m.id}" placeholder="Monto">
+          <span style="font-size:11px;color:#aaa;margin-left:4px">(pozo $${pozo.toLocaleString('es-AR')})</span>
         </div>
         <div class="si">
           <input type="number" min="0" max="20" value="${r?r.h:''}" placeholder="-" style="width:40px" id="rh${m.id}">
@@ -698,22 +653,53 @@ window.rRL=function(){
 window.svRes=async function(mid){
   const h=(document.getElementById('rh'+mid)||{}).value;
   const a=(document.getElementById('ra'+mid)||{}).value;
-  const am=(document.getElementById('am'+mid)||{}).value;
-  if(h===''||a===''){alert('Ingresá los dos valores del resultado.');return;}
+  if(h===''||a===''){alert('Ingresá los dos valores.');return;}
   res[mid]={h:parseInt(h),a:parseInt(a)};
-  if(am&&parseInt(am)>0)matchAmounts[mid]=parseInt(am);
-  await svR();await svA();showMsg('rm'+mid,'✓','ok');setTimeout(rRL,900);
+  await svR();showMsg('rm'+mid,'✓','ok');setTimeout(rRL,900);
 }
 window.dlRes=async function(mid){
   if(!confirm('¿Borrar el resultado?'))return;
   delete res[mid];await svR();rRL();
 }
 
+window.decidirPozo=async function(mid,decision){
+  pozoDecisions[mid]=decision;await svD();
+}
+
+// CHAT
+function pChat(){
+  const msgs=Object.values(chatMsgs).sort((a,b)=>a.ts-b.ts);
+  setHTML('PC',`<div class="card">
+    <h2>💬 Chat general</h2>
+    <div class="chat-box" id="chatBox">
+      ${msgs.length?msgs.map(m=>`
+        <div class="chat-msg ${m.author===me?'mine':'other'}">
+          <div class="chat-bubble">${m.text}</div>
+          <div class="chat-meta">${m.author===me?'Vos':m.author} · ${fmtTime(m.ts)}</div>
+        </div>`).join(''):'<div class="empty">¡Nadie comentó aún!</div>'}
+    </div>
+    <div class="chat-input-row">
+      <textarea id="chatInput" placeholder="Escribí un mensaje..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+      <button class="btn-p" onclick="sendChat()" style="padding:8px 14px">Enviar</button>
+    </div>
+  </div>`);
+  const box=document.getElementById('chatBox');
+  if(box)box.scrollTop=box.scrollHeight;
+  updateBadges();
+}
+window.sendChat=async function(){
+  const inp=document.getElementById('chatInput');if(!inp)return;
+  const txt=inp.value.trim();if(!txt)return;
+  await push(ref(db,dbPath('chat')),{author:me,text:txt,ts:Date.now()});
+  inp.value='';
+}
+
+// TABLA
 function pTbl(){
   const names=partNames();
   const played=Object.keys(res).length;
   const {sc,hist,carryOver}=calcStats();
-  const srt=names.slice().sort((a,b)=>sc[b].hits-sc[a].hits||sc[b].earned-sc[a].earned);
+  const srt=names.slice().sort((a,b)=>sc[b].earned-sc[a].earned||sc[b].hits-sc[a].hits);
   const th=Object.values(sc).reduce((s,v)=>s+v.hits,0);
   setHTML('PC',`<div class="sg">
     <div class="sc"><div class="sl">Pozo acumulado</div><div class="sv" style="font-size:15px;color:#BA7517">$${carryOver.toLocaleString('es-AR')}</div></div>
@@ -722,40 +708,39 @@ function pTbl(){
     <div class="sc"><div class="sl">Participantes</div><div class="sv">${names.length}</div></div>
   </div>
   <div class="card"><h2>Clasificación</h2>
-    ${!names.length||!played?'<div class="empty">Aún no hay resultados cargados.</div>':`
-    <table><thead><tr><th>#</th><th>Participante</th><th>Aciertos</th><th>Ganado</th></tr></thead><tbody>
+    ${!names.length||!played?'<div class="empty">Aún no hay resultados.</div>':`
+    <table><thead><tr><th>#</th><th>Participante</th><th>Aciertos</th><th>Invertido</th><th>Ganado</th></tr></thead><tbody>
     ${srt.map((p,i)=>`<tr${!isAdm&&p===me?' class="hirow"':''}>
-      <td style="font-weight:700;color:#aaa">${i===0&&sc[p].hits>0?'🏆':(i+1)}</td>
-      <td>${p}${!isAdm&&p===me?' <span style="font-size:10px;color:#185FA5;font-weight:600">(vos)</span>':''}</td>
+      <td style="font-weight:700;color:#aaa">${i===0&&sc[p].earned>0?'🏆':(i+1)}</td>
+      <td>${p}${!isAdm&&p===me?' <span style="font-size:10px;color:#185FA5">(vos)</span>':''}</td>
       <td style="font-weight:600">${sc[p].hits}</td>
+      <td style="color:#888">$${sc[p].invested.toLocaleString('es-AR')}</td>
       <td style="font-weight:${sc[p].earned>0?700:400}">$${sc[p].earned.toLocaleString('es-AR')}</td>
     </tr>`).join('')}</tbody></table>`}
   </div>
   <div class="card"><h2>Historial de partidos</h2>
     ${!hist.length?'<div class="empty">Sin resultados aún.</div>':`
-    <table><thead><tr><th>Partido</th><th>Res.</th><th>Apostaron</th><th>Pozo</th><th>Ganadores</th></tr></thead><tbody>
+    <table><thead><tr><th>Partido</th><th>Res.</th><th>Pozo</th><th>Ganadores</th></tr></thead><tbody>
     ${hist.slice().reverse().map(row=>`<tr>
       <td style="font-size:11px">${row.m.h} vs ${row.m.a}</td>
       <td style="font-weight:700">${row.r.h}-${row.r.a}</td>
-      <td style="font-size:11px;color:#888">${row.apostaron.length}</td>
-      <td style="font-size:11px;font-weight:600">$${row.pozoTotal.toLocaleString('es-AR')}${row.carryOver>0?` <span style="font-size:10px;color:#633806">(+$${row.carryOver.toLocaleString('es-AR')} acum.)</span>`:''}</td>
+      <td style="font-size:11px;font-weight:600">$${row.pozoTotal.toLocaleString('es-AR')}${row.carryOver>0?` <span style="font-size:10px;color:#633806">(+$${row.carryOver.toLocaleString('es-AR')})</span>`:''}</td>
       <td style="font-size:11px;color:#888">${
         row.acum?'<span class="badge ba">Nadie — acumula</span>':
-        row.acumDecision?`<span class="badge ba">Ganaron: ${row.winners.join(', ')} — pozo sigue acumulando</span>`:
+        row.acumDecision?`<span class="badge ba">Ganaron: ${row.winners.join(', ')} — sigue acumulando</span>`:
         row.pendingDecision&&isAdm?`<span style="color:#3B6D11;font-weight:600">Ganaron: ${row.winners.join(', ')}</span><br>
-          <button onclick="decidirPozo(${row.m.id},'cobrar')" style="font-size:11px;padding:3px 8px;margin-top:4px;border-color:#3B6D11;color:#3B6D11">✓ Cobrar pozo</button>
+          <button onclick="decidirPozo(${row.m.id},'cobrar')" style="font-size:11px;padding:3px 8px;margin-top:4px;border-color:#3B6D11;color:#3B6D11">✓ Cobrar</button>
           <button onclick="decidirPozo(${row.m.id},'acumular')" style="font-size:11px;padding:3px 8px;margin-top:4px;margin-left:4px;border-color:#633806;color:#633806">→ Seguir acumulando</button>`:
-        row.pendingDecision?`<span style="color:#3B6D1;font-weight:600">Ganaron: ${row.winners.join(', ')} — pendiente decisión admin</span>`:
-        row.proporcional?row.winners.map(p=>`${p} $${row.shares[p].toLocaleString('es-AR')}`).join(', '):
-        row.winners.map(p=>`${p} $${(row.share).toLocaleString('es-AR')}`).join(', ')
+        row.pendingDecision?`Ganaron: ${row.winners.join(', ')} — pendiente decisión admin`:
+        row.shares?row.winners.map(p=>`${p} $${row.shares[p].toLocaleString('es-AR')}`).join(', '):
+        row.winners.join(', ')
       }</td>
     </tr>`).join('')}</tbody></table>`}
   </div>`);
 }
 
-// Arrancar mostrando selección de sala inmediatamente
-document.addEventListener('DOMContentLoaded',()=>showSala());
-if(document.readyState!=='loading')showSala();
+// INIT
+showSala();
 </script>
 </body>
 </html>
