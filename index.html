@@ -150,7 +150,7 @@ const MX=[
 ];
 const GS=[...new Set(MX.map(m=>m.g))].sort();
 const APASS="prode2026admin";
-const BPM_DEFAULT=1000;
+const BPM_DEFAULT=3000;
 
 // bets[player][mid] = { h, a }
 // matchAmounts[mid] = monto definido por el admin para ese partido (default 1000)
@@ -392,7 +392,7 @@ function pAdm(){
   const names=partNames();
   const {carryOver}=calcStats();
   const GF=document.getElementById('admGF')?document.getElementById('admGF').value:'';
-  const proximos=MX.filter(m=>!res[m.id]&&(!GF||m.g===GF)).slice(0,20);
+  const proximos=MX.filter(m=>!GF||(m.g===GF));
   setHTML('PC',`<div class="card"><h2>Participantes (${names.length})</h2>
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:flex-end">
       <div><div style="font-size:11px;color:#666;margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Nombre</div>
@@ -408,7 +408,7 @@ function pAdm(){
   </div>
   <div class="card">
     <h2>💰 Monto por partido</h2>
-    <div style="font-size:12px;color:#888;margin-bottom:10px">Definí cuánto apuesta cada participante en cada partido. Por defecto es $1.000.</div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px">Definí cuánto apuesta cada participante en cada partido. Por defecto es $3.000.</div>
     <div style="margin-bottom:8px">
       <select id="admGF" onchange="pAdm()" style="max-width:160px"><option value="">Todos los grupos</option>${GS.map(g=>`<option${GF===g?' selected':''}>${g}</option>`).join('')}</select>
     </div>
@@ -771,4 +771,4 @@ function pTbl(){
 showSala();
 </script>
 </body>
-</html>
+</html>yo
