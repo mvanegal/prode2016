@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -151,18 +151,20 @@ const MX=[
 const GS=[...new Set(MX.map(m=>m.g))].sort();
 const APASS="prode2026admin";
 
-// bets[player][mid] = { h, a, monto }  (monto = lo que apostó esa persona en ese partido)
+// bets[player][mid] = { h, a }
+// matchAmounts[mid] = monto definido por el admin para ese partido (default 1000)
+
 let sala=null;
 function dbPath(sub){return `salas/${sala}/${sub}`;}
 
-let me=null,isAdm=false,parts={},bets={},res={},pend={},chatMsgs={},matchComments={},openComments={},pozoDecisions={};
+let me=null,isAdm=false,parts={},bets={},res={},pend={},chatMsgs={},matchComments={},openComments={},pozoDecisions={},matchAmounts={};
 let lastReadChat=0,lastReadMatch={};
 
 function listenData(cb){
   onValue(ref(db,dbPath('')),snap=>{
     const d=snap.val()||{};
     parts=d.parts||{};bets=d.bets||{};res=d.res||{};
-    chatMsgs=d.chat||{};matchComments=d.matchComments||{};pozoDecisions=d.pozoDecisions||{};
+    chatMsgs=d.chat||{};matchComments=d.matchComments||{};pozoDecisions=d.pozoDecisions||{};matchAmounts=d.matchAmounts||{};
     cb();
   });
 }
@@ -171,15 +173,15 @@ const svP=()=>set(ref(db,dbPath('parts')),parts);
 const svB=()=>set(ref(db,dbPath('bets')),bets);
 const svR=()=>set(ref(db,dbPath('res')),res);
 const svD=()=>set(ref(db,dbPath('pozoDecisions')),pozoDecisions);
+const svA=()=>set(ref(db,dbPath('matchAmounts')),matchAmounts);
 
 function partNames(){return Object.keys(parts);}
 
-// Calcula pozo total de un partido = suma de montos apostados por todos
+// Pozo de un partido = monto del admin × quienes apostaron
 function pozoPartido(mid){
-  return partNames().reduce((sum,p)=>{
-    const b=bets[p]&&bets[p][mid];
-    return sum+(b&&b.monto?b.monto:0);
-  },0);
+  const monto=matchAmounts[mid]||BPM_DEFAULT;
+  const apostaron=partNames().filter(p=>bets[p]&&bets[p][mid]!=null);
+  return apostaron.length*monto;
 }
 
 function calcStats(){
@@ -191,12 +193,12 @@ function calcStats(){
 
   MX.forEach(m=>{
     const r=res[m.id];
-    const apostaron=names.filter(p=>bets[p]&&bets[p][m.id]&&bets[p][m.id].h!==undefined);
-    const pozoBase=apostaron.reduce((sum,p)=>sum+(bets[p][m.id].monto||0),0);
+    const apostaron=names.filter(p=>bets[p]&&bets[p][m.id]!=null);
+    const monto=matchAmounts[m.id]||BPM_DEFAULT;
+    const pozoBase=apostaron.length*monto;
     const pozoTotal=pozoBase+carryOver;
 
-    // Sumar inversión total por persona
-    apostaron.forEach(p=>{sc[p].invested+=(bets[p][m.id].monto||0);});
+    apostaron.forEach(p=>{sc[p].invested+=monto;});
 
     if(!r)return;
 
@@ -216,8 +218,8 @@ function calcStats(){
         const inversion={};
         winners.forEach(p=>{
           inversion[p]=partesAcum.reduce((sum,pa)=>{
-            const b=bets[p]&&bets[p][pa.mid];
-            return sum+(b&&b.monto?b.monto:0);
+            const m2=matchAmounts[pa.mid]||BPM_DEFAULT;
+            return sum+(pa.apostaron.includes(p)?m2:0);
           },0);
         });
         const totalInv=Object.values(inversion).reduce((a,b)=>a+b,0);
@@ -473,21 +475,19 @@ window.rBL=function(){
       const pd=pend[pl][m.id];
       const vh=pd!==undefined?pd.h:(ex!==undefined?ex.h:'');
       const va=pd!==undefined?pd.a:(ex!==undefined?ex.a:'');
-      const vm=pd!==undefined?pd.monto:(ex&&ex.monto?ex.monto:'');
       const played=!!res[m.id];
+      const vm=matchAmounts[m.id]||BPM_DEFAULT;
       html+=`<div class="mr">
         <div class="md">${m.d}</div>
-        <div class="mt">${m.h} <span style="color:#aaa">vs</span> ${m.a}</div>
+        <div class="mt">${m.h} <span style="color:#aaa">vs</span> ${m.a}
+          <span style="font-size:11px;color:#aaa;margin-left:4px">$${vm.toLocaleString('es-AR')}</span>
+        </div>
         <div class="si">
           <input type="number" min="0" max="20" value="${vh}" placeholder="-" ${played?'disabled':''} style="width:40px" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'h',this.value)">
           <span class="sep">-</span>
           <input type="number" min="0" max="20" value="${va}" placeholder="-" ${played?'disabled':''} style="width:40px" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'a',this.value)">
         </div>
-        <div style="display:flex;align-items:center;gap:3px">
-          <span style="font-size:12px;color:#888">$</span>
-          <input type="number" min="0" value="${vm}" placeholder="monto" ${played?'disabled':''} class="monto-input" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'monto',this.value)">
-        </div>
-        ${played?`<span class="badge bd">Jugado</span>`:(ex&&ex.monto?`<span class="badge bo">OK $${ex.monto.toLocaleString('es-AR')}</span>`:`<span class="badge bp">—</span>`)}
+        ${played?`<span class="badge bd">Jugado</span>`:(ex?`<span class="badge bo">OK</span>`:`<span class="badge bp">—</span>`)}
       </div>`;
     });
     html+='</div>';
@@ -497,7 +497,7 @@ window.rBL=function(){
 
 window.sp=function(pl,mid,field,val){
   if(!pend[pl])pend[pl]={};
-  if(!pend[pl][mid])pend[pl][mid]={h:'',a:'',monto:''};
+  if(!pend[pl][mid])pend[pl][mid]={h:'',a:''};
   pend[pl][mid][field]=val;
 }
 
@@ -508,8 +508,8 @@ window.svBets=async function(){
   let n=0;
   Object.keys(pend[pl]||{}).forEach(mid=>{
     const b=pend[pl][mid];
-    if(b.h!==''&&b.a!==''&&b.h!==null&&b.a!==null&&b.monto!==''&&b.monto>0){
-      bets[pl][mid]={h:parseInt(b.h),a:parseInt(b.a),monto:parseInt(b.monto)};n++;
+    if(b.h!==''&&b.a!==''&&b.h!==null&&b.a!==null){
+      bets[pl][mid]={h:parseInt(b.h),a:parseInt(b.a)};n++;
     }
   });
   pend[pl]={};await svB();rBL();
@@ -560,7 +560,7 @@ window.rVL=function(){
           if(!b||b.h===undefined)return`<td style="text-align:center"><span class="score-display empty-bet">—</span></td>`;
           const isHit=r&&b.h===r.h&&b.a===r.a;
           const cls=r?(isHit?'hit':'miss'):'';
-          return`<td style="text-align:center"><span class="score-display ${cls}">${b.h}-${b.a}</span>${b.monto?`<div style="font-size:10px;color:#888">$${b.monto.toLocaleString('es-AR')}</div>`:''}`;
+          return`<td style="text-align:center"><span class="score-display ${cls}">${b.h}-${b.a}</span></td>`;
         }).join('')}
         <td style="text-align:center">${r?`<span class="score-display" style="background:#1a1a1a;color:#fff">${r.h}-${r.a}</span>`:`<span style="font-size:11px;color:#aaa">—</span>`}</td>
         <td><button class="toggle-comments" onclick="toggleCom(${m.id})">💬${unread>0?` <span class="unread">${unread}</span>`:mc.length?' '+mc.length:''}</button></td>
@@ -629,11 +629,16 @@ window.rRL=function(){
     html+=`<div class="card" style="margin-bottom:8px"><div class="gh">Grupo ${g}</div>`;
     fx.filter(m=>m.g===g).forEach(m=>{
       const r=res[m.id];
-      const pozo=pozoPartido(m.id);
+      const monto=matchAmounts[m.id]||BPM_DEFAULT;
+      const apostaron=partNames().filter(p=>bets[p]&&bets[p][m.id]!=null);
       html+=`<div class="mr">
         <div class="md">${m.d}</div>
         <div class="mt">${m.h} <span style="color:#aaa">vs</span> ${m.a}
-          <span style="font-size:11px;color:#aaa;margin-left:4px">(pozo $${pozo.toLocaleString('es-AR')})</span>
+          <span style="font-size:11px;color:#aaa;margin-left:4px">(${apostaron.length} · $${(apostaron.length*monto).toLocaleString('es-AR')})</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:3px;font-size:12px">
+          <span style="color:#888">$</span>
+          <input type="number" min="0" value="${monto}" style="width:70px;font-size:12px" id="am${m.id}">
         </div>
         <div class="si">
           <input type="number" min="0" max="20" value="${r?r.h:''}" placeholder="-" style="width:40px" id="rh${m.id}">
@@ -653,9 +658,11 @@ window.rRL=function(){
 window.svRes=async function(mid){
   const h=(document.getElementById('rh'+mid)||{}).value;
   const a=(document.getElementById('ra'+mid)||{}).value;
+  const am=(document.getElementById('am'+mid)||{}).value;
   if(h===''||a===''){alert('Ingresá los dos valores.');return;}
   res[mid]={h:parseInt(h),a:parseInt(a)};
-  await svR();showMsg('rm'+mid,'✓','ok');setTimeout(rRL,900);
+  if(am&&parseInt(am)>0)matchAmounts[mid]=parseInt(am);
+  await svR();await svA();showMsg('rm'+mid,'✓','ok');setTimeout(rRL,900);
 }
 window.dlRes=async function(mid){
   if(!confirm('¿Borrar el resultado?'))return;
