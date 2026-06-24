@@ -742,50 +742,35 @@ window.sendChat=async function(){
 
 // TABLA
 function calcDeudas(hist){
-  // Balance neto de cada persona considerando todos los partidos
-  const balance={};
+  // Cada partido genera deudas independientes:
+  // los que apostaron y NO ganaron le deben su monto a cada ganador (proporcional a lo que ganó cada ganador)
+  const deudas=[];
   hist.forEach(row=>{
-    row.apostaron.forEach(p=>{
-      if(!balance[p])balance[p]=0;
-      balance[p]-=(matchAmounts[row.m.id]||BPM_DEFAULT);
-    });
-    row.winners.forEach(p=>{
-      if(!balance[p])balance[p]=0;
-      balance[p]+=row.shares[p];
+    const monto=matchAmounts[row.m.id]||BPM_DEFAULT;
+    const perdedores=row.apostaron.filter(p=>!row.winners.includes(p));
+    if(!row.winners.length||!perdedores.length)return;
+    const pozoTotal=row.pozo;
+    // Cada perdedor debe pagar su monto, repartido entre los ganadores proporcionalmente a lo que ganaron
+    perdedores.forEach(deudor=>{
+      row.winners.forEach(ganador=>{
+        const proporcion=row.shares[ganador]/pozoTotal;
+        const montoDeuda=Math.round(monto*proporcion);
+        if(montoDeuda>0){
+          const key=`pago_${row.m.id}_${deudor}__${ganador}`;
+          deudas.push({
+            mid:row.m.id,
+            partido:`${row.m.h} vs ${row.m.a}`,
+            de:deudor,
+            a:ganador,
+            monto:montoDeuda,
+            pagado:!!pozoDecisions[key],
+            key
+          });
+        }
+      });
     });
   });
-
-  // Generar lista de transacciones mínimas
-  function generarTx(bal){
-    const d=Object.keys(bal).filter(p=>bal[p]<-1).map(p=>({p,v:-bal[p]})).sort((a,b)=>b.v-a.v).map(x=>({...x}));
-    const a=Object.keys(bal).filter(p=>bal[p]>1).map(p=>({p,v:bal[p]})).sort((a,b)=>b.v-a.v).map(x=>({...x}));
-    const tx=[];
-    let i=0,j=0;
-    while(i<d.length&&j<a.length){
-      const m=Math.min(d[i].v,a[j].v);
-      if(m>1)tx.push({de:d[i].p,a:a[j].p,monto:Math.round(m)});
-      d[i].v-=m;a[j].v-=m;
-      if(d[i].v<=1)i++;
-      if(a[j].v<=1)j++;
-    }
-    return tx;
-  }
-
-  // Todas las transacciones
-  const todasTx=generarTx(balance);
-
-  // Descontar pagos ya realizados del balance
-  const balPendiente={};
-  Object.keys(balance).forEach(p=>balPendiente[p]=balance[p]);
-  todasTx.forEach(t=>{
-    const key='pago_'+t.de+'__'+t.a;
-    if(pozoDecisions[key]){
-      balPendiente[t.de]+=t.monto;
-      balPendiente[t.a]-=t.monto;
-    }
-  });
-
-  return {todasTx, pendientesTx: generarTx(balPendiente)};
+  return deudas;
 }
 
 function pTbl(){
@@ -794,7 +779,8 @@ function pTbl(){
   const {sc,hist,carryOver}=calcStats();
   const srt=names.slice().sort((a,b)=>sc[b].earned-sc[a].earned||sc[b].hits-sc[a].hits);
   const th=Object.values(sc).reduce((s,v)=>s+v.hits,0);
-  const {todasTx,pendientesTx}=calcDeudas(hist);
+  const todasDeudas=calcDeudas(hist);
+  const pendientes=todasDeudas.filter(d=>!d.pagado);
 
   setHTML('PC',`<div class="sg">
     <div class="sc"><div class="sl">Pozo acumulado</div><div class="sv" style="font-size:15px;color:#BA7517">$${carryOver.toLocaleString('es-AR')}</div></div>
@@ -816,12 +802,13 @@ function pTbl(){
   </div>
   <div class="card"><h2>💸 Deudas pendientes</h2>
     ${!played?'<div class="empty">Aún no hay resultados.</div>':
-      pendientesTx.length===0?'<div class="empty">✓ Todas las deudas están saldadas.</div>':
-      pendientesTx.map(t=>`<div class="mr">
+      pendientes.length===0?'<div class="empty">✓ Todas las deudas están saldadas.</div>':
+      pendientes.map(d=>`<div class="mr">
         <div style="flex:1;font-size:13px">
-          <strong>${t.de}</strong> le debe <strong style="color:#BA7517">$${t.monto.toLocaleString('es-AR')}</strong> a <strong>${t.a}</strong>
+          <strong>${d.de}</strong> le debe <strong style="color:#BA7517">$${d.monto.toLocaleString('es-AR')}</strong> a <strong>${d.a}</strong>
+          <div style="font-size:11px;color:#aaa">${d.partido}</div>
         </div>
-        <button style="font-size:11px;padding:4px 10px;border-color:#3B6D11;color:#3B6D11" onclick="marcarPago('pago_${t.de}__${t.a}',true)">✓ Pagado</button>
+        <button style="font-size:11px;padding:4px 10px;border-color:#3B6D11;color:#3B6D11" onclick="marcarPago('${d.key}',true)">✓ Pagado</button>
       </div>`).join('')
     }
   </div>
