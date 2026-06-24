@@ -736,12 +736,39 @@ window.sendChat=async function(){
 }
 
 // TABLA
+function calcDeudas(hist){
+  const balance={};
+  hist.forEach(row=>{
+    row.apostaron.forEach(p=>{
+      if(!balance[p])balance[p]=0;
+      balance[p]-=(matchAmounts[row.m.id]||BPM_DEFAULT);
+    });
+    row.winners.forEach(p=>{
+      if(!balance[p])balance[p]=0;
+      balance[p]+=row.shares[p];
+    });
+  });
+  const d=Object.keys(balance).filter(p=>balance[p]<0).map(p=>({p,v:-balance[p]})).sort((a,b)=>b.v-a.v).map(x=>({...x}));
+  const a=Object.keys(balance).filter(p=>balance[p]>0).map(p=>({p,v:balance[p]})).sort((a,b)=>b.v-a.v).map(x=>({...x}));
+  const tx=[];
+  let i=0,j=0;
+  while(i<d.length&&j<a.length){
+    const m=Math.min(d[i].v,a[j].v);
+    if(m>0)tx.push({de:d[i].p,a:a[j].p,monto:m});
+    d[i].v-=m;a[j].v-=m;
+    if(d[i].v<=0)i++;
+    if(a[j].v<=0)j++;
+  }
+  return tx;
+}
+
 function pTbl(){
   const names=partNames();
   const played=Object.keys(res).length;
   const {sc,hist,carryOver}=calcStats();
   const srt=names.slice().sort((a,b)=>sc[b].earned-sc[a].earned||sc[b].hits-sc[a].hits);
   const th=Object.values(sc).reduce((s,v)=>s+v.hits,0);
+  const deudas=calcDeudas(hist);
   setHTML('PC',`<div class="sg">
     <div class="sc"><div class="sl">Pozo acumulado</div><div class="sv" style="font-size:15px;color:#BA7517">$${carryOver.toLocaleString('es-AR')}</div></div>
     <div class="sc"><div class="sl">Aciertos totales</div><div class="sv">${th}</div></div>
@@ -760,6 +787,22 @@ function pTbl(){
       <td style="font-weight:${sc[p].earned>0?700:400}">$${sc[p].earned.toLocaleString('es-AR')}</td>
     </tr>`).join('')}</tbody></table>`}
   </div>
+  <div class="card"><h2>💸 Deudas pendientes</h2>
+    ${!played||!deudas.length?'<div class="empty">No hay deudas pendientes.</div>':
+    deudas.map(t=>{
+      const key='pago_'+t.de+'__'+t.a;
+      const pagado=pozoDecisions[key];
+      return`<div class="mr" style="${pagado?'opacity:0.5':''}">
+        <div style="flex:1;font-size:13px">
+          <strong>${t.de}</strong> le debe <strong style="color:#BA7517">$${t.monto.toLocaleString('es-AR')}</strong> a <strong>${t.a}</strong>
+        </div>
+        ${pagado
+          ?`<span class="badge bd">✓ Pagado</span> ${isAdm?`<button style="font-size:11px;padding:2px 7px;color:#aaa" onclick="marcarPago('${key}',false)">Deshacer</button>`:''}`
+          :`<button style="font-size:11px;padding:4px 10px;border-color:#3B6D11;color:#3B6D11" onclick="marcarPago('${key}',true)">✓ Pagado</button>`
+        }
+      </div>`;
+    }).join('')}
+  </div>
   <div class="card"><h2>Historial de partidos</h2>
     ${!hist.length?'<div class="empty">Sin resultados aún.</div>':`
     <table><thead><tr><th>Partido</th><th>Res.</th><th>Pozo</th><th>Ganadores</th></tr></thead><tbody>
@@ -773,6 +816,12 @@ function pTbl(){
       </td>
     </tr>`).join('')}</tbody></table>`}
   </div>`);
+}
+
+window.marcarPago=async function(key,pagado){
+  pozoDecisions[key]=pagado||null;
+  if(!pagado)delete pozoDecisions[key];
+  await svD();
 }
 
 // INIT
