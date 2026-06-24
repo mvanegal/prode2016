@@ -434,6 +434,11 @@ function pAdm(){
     <div class="sc"><div class="sl">Pozo acumulado</div><div class="sv" style="font-size:15px;color:#BA7517">$${carryOver.toLocaleString('es-AR')}</div></div>
   </div>
   <div style="font-size:12px;color:#888;margin-top:4px">💡 Sala: <strong>${sala}</strong> · Compartí el PIN a cada participante en privado.</div>
+  </div>
+  <div class="card">
+    <h2>⚠️ Zona de administración</h2>
+    <div style="font-size:12px;color:#888;margin-bottom:10px">Estas acciones no se pueden deshacer.</div>
+    <button style="border-color:#c00;color:#c00;font-size:12px" onclick="resetPagos()">🗑 Restablecer todos los pagos marcados</button>
   </div>`);
 }
 
@@ -863,6 +868,15 @@ function pTbl(){
       </td>
     </tr>`).join('')}</tbody></table>`}
   </div>`);
+}
+
+window.resetPagos=async function(){
+  if(!confirm('¿Restablecer todos los pagos marcados? Esto borrará el historial de pagos pero no afecta las apuestas ni resultados.'))return;
+  // Borrar solo las claves de pagos (que empiezan con pago_)
+  Object.keys(pozoDecisions).forEach(k=>{if(k.startsWith('pago_'))delete pozoDecisions[k];});
+  await svD();
+  alert('✓ Pagos restablecidos correctamente.');
+  pTbl();
 }
 
 window.marcarPago=async function(key,pagado){
