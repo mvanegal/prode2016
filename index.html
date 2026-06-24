@@ -748,18 +748,47 @@ function calcDeudas(hist){
       balance[p]+=row.shares[p];
     });
   });
+
+  // Calcular transacciones sin considerar pagos
   const d=Object.keys(balance).filter(p=>balance[p]<0).map(p=>({p,v:-balance[p]})).sort((a,b)=>b.v-a.v).map(x=>({...x}));
   const a=Object.keys(balance).filter(p=>balance[p]>0).map(p=>({p,v:balance[p]})).sort((a,b)=>b.v-a.v).map(x=>({...x}));
   const tx=[];
   let i=0,j=0;
-  while(i<d.length&&j<a.length){
-    const m=Math.min(d[i].v,a[j].v);
-    if(m>0)tx.push({de:d[i].p,a:a[j].p,monto:m});
-    d[i].v-=m;a[j].v-=m;
-    if(d[i].v<=0)i++;
-    if(a[j].v<=0)j++;
+  const dc=d.map(x=>({...x}));
+  const ac=a.map(x=>({...x}));
+  while(i<dc.length&&j<ac.length){
+    const m=Math.min(dc[i].v,ac[j].v);
+    if(m>0)tx.push({de:dc[i].p,a:ac[j].p,monto:m});
+    dc[i].v-=m;ac[j].v-=m;
+    if(dc[i].v<=0)i++;
+    if(ac[j].v<=0)j++;
   }
-  return tx;
+
+  // Descontar pagos ya marcados del balance y recalcular deudas restantes
+  const balancePendiente={...Object.fromEntries(Object.keys(balance).map(p=>[p,balance[p]]))};
+  tx.forEach(t=>{
+    const key='pago_'+t.de+'__'+t.a;
+    if(pozoDecisions[key]){
+      // Este pago ya fue hecho, ajustar balance
+      balancePendiente[t.de]+=t.monto;
+      balancePendiente[t.a]-=t.monto;
+    }
+  });
+
+  // Recalcular transacciones pendientes
+  const dp=Object.keys(balancePendiente).filter(p=>balancePendiente[p]<0).map(p=>({p,v:-balancePendiente[p]})).sort((a,b)=>b.v-a.v).map(x=>({...x}));
+  const ap=Object.keys(balancePendiente).filter(p=>balancePendiente[p]>0).map(p=>({p,v:balancePendiente[p]})).sort((a,b)=>b.v-a.v).map(x=>({...x}));
+  const txPendiente=[];
+  let ii=0,jj=0;
+  while(ii<dp.length&&jj<ap.length){
+    const m=Math.min(dp[ii].v,ap[jj].v);
+    if(m>0)txPendiente.push({de:dp[ii].p,a:ap[jj].p,monto:m});
+    dp[ii].v-=m;ap[jj].v-=m;
+    if(dp[ii].v<=0)ii++;
+    if(ap[jj].v<=0)jj++;
+  }
+
+  return txPendiente;
 }
 
 function pTbl(){
@@ -788,20 +817,38 @@ function pTbl(){
     </tr>`).join('')}</tbody></table>`}
   </div>
   <div class="card"><h2>💸 Deudas pendientes</h2>
-    ${!played||!deudas.length?'<div class="empty">No hay deudas pendientes.</div>':
-    deudas.map(t=>{
-      const key='pago_'+t.de+'__'+t.a;
-      const pagado=pozoDecisions[key];
-      return`<div class="mr" style="${pagado?'opacity:0.5':''}">
-        <div style="flex:1;font-size:13px">
-          <strong>${t.de}</strong> le debe <strong style="color:#BA7517">$${t.monto.toLocaleString('es-AR')}</strong> a <strong>${t.a}</strong>
-        </div>
-        ${pagado
-          ?`<span class="badge bd">✓ Pagado</span> ${isAdm?`<button style="font-size:11px;padding:2px 7px;color:#aaa" onclick="marcarPago('${key}',false)">Deshacer</button>`:''}`
-          :`<button style="font-size:11px;padding:4px 10px;border-color:#3B6D11;color:#3B6D11" onclick="marcarPago('${key}',true)">✓ Pagado</button>`
-        }
-      </div>`;
-    }).join('')}
+    ${!played?'<div class="empty">Aún no hay resultados.</div>':
+    (()=>{
+      // Calcular todas las transacciones (incluyendo pagadas)
+      const balanceTodo={};
+      hist.forEach(row=>{
+        row.apostaron.forEach(p=>{if(!balanceTodo[p])balanceTodo[p]=0;balanceTodo[p]-=(matchAmounts[row.m.id]||BPM_DEFAULT);});
+        row.winners.forEach(p=>{if(!balanceTodo[p])balanceTodo[p]=0;balanceTodo[p]+=row.shares[p];});
+      });
+      const dt=Object.keys(balanceTodo).filter(p=>balanceTodo[p]<0).map(p=>({p,v:-balanceTodo[p]})).sort((a,b)=>b.v-a.v).map(x=>({...x}));
+      const at=Object.keys(balanceTodo).filter(p=>balanceTodo[p]>0).map(p=>({p,v:balanceTodo[p]})).sort((a,b)=>b.v-a.v).map(x=>({...x}));
+      const txTodas=[];
+      let ii=0,jj=0;
+      while(ii<dt.length&&jj<at.length){
+        const m=Math.min(dt[ii].v,at[jj].v);
+        if(m>0)txTodas.push({de:dt[ii].p,a:at[jj].p,monto:m});
+        dt[ii].v-=m;at[jj].v-=m;
+        if(dt[ii].v<=0)ii++;
+        if(at[jj].v<=0)jj++;
+      }
+      if(!txTodas.length)return'<div class="empty">No hay deudas.</div>';
+      const pendientes=txTodas.filter(t=>!pozoDecisions['pago_'+t.de+'__'+t.a]);
+      if(!pendientes.length)return'<div class="empty">✓ Todas las deudas están saldadas.</div>';
+      return pendientes.map(t=>{
+        const key='pago_'+t.de+'__'+t.a;
+        return`<div class="mr">
+          <div style="flex:1;font-size:13px">
+            <strong>${t.de}</strong> le debe <strong style="color:#BA7517">$${t.monto.toLocaleString('es-AR')}</strong> a <strong>${t.a}</strong>
+          </div>
+          <button style="font-size:11px;padding:4px 10px;border-color:#3B6D11;color:#3B6D11" onclick="marcarPago('${key}',true)">✓ Pagado</button>
+        </div>`;
+      }).join('');
+    })()}
   </div>
   <div class="card"><h2>Historial de partidos</h2>
     ${!hist.length?'<div class="empty">Sin resultados aún.</div>':`
