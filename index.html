@@ -828,6 +828,25 @@ function pTbl(){
 }
 
 // INIT
+window.marcarPago=async function(key,pagado){
+  if(pagado){
+    pozoDecisions[key]=true;
+  } else {
+    delete pozoDecisions[key];
+  }
+  await svD();
+  pTbl();
+}
+
+window.resetPagos=async function(){
+  if(!confirm('¿Restablecer todos los pagos marcados?'))return;
+  Object.keys(pozoDecisions).forEach(k=>{if(k.startsWith('pago_'))delete pozoDecisions[k];});
+  await svD();
+  alert('✓ Pagos restablecidos.');
+  pTbl();
+}
+
+// INIT
 showSala();
 </script>
 </body>
