@@ -742,57 +742,32 @@ window.sendChat=async function(){
 
 // TABLA
 function calcDeudas(hist){
-  // Paso 1: calcular deudas brutas por partido
-  // deudaBruta[deudor][acreedor] = monto total acumulado
-  const deudaBruta={};
-
+  // Deudas simples por partido: cada perdedor le debe a cada ganador
+  // proporcional a lo que ganó cada ganador
+  const deudas=[];
   hist.forEach(row=>{
     const monto=matchAmounts[row.m.id]||BPM_DEFAULT;
     const perdedores=row.apostaron.filter(p=>!row.winners.includes(p));
     if(!row.winners.length||!perdedores.length)return;
-
     perdedores.forEach(deudor=>{
       row.winners.forEach(ganador=>{
-        // Cada perdedor le debe a cada ganador proporcional a lo que ganó
         const proporcion=row.shares[ganador]/row.pozo;
         const montoDeuda=Math.round(monto*proporcion);
         if(montoDeuda<=0)return;
-        if(!deudaBruta[deudor])deudaBruta[deudor]={};
-        if(!deudaBruta[deudor][ganador])deudaBruta[deudor][ganador]=0;
-        deudaBruta[deudor][ganador]+=montoDeuda;
+        const key=`pago_${row.m.id}_${deudor}__${ganador}`;
+        deudas.push({
+          mid:row.m.id,
+          partido:`${row.m.h} vs ${row.m.a}`,
+          de:deudor,
+          a:ganador,
+          monto:montoDeuda,
+          key,
+          pagado:!!pozoDecisions[key]
+        });
       });
     });
   });
-
-  // Paso 2: neteo entre pares
-  // Si A le debe a B y B le debe a A, cancelar la diferencia
-  const procesados=new Set();
-  const txFinales=[];
-
-  Object.keys(deudaBruta).forEach(deudor=>{
-    Object.keys(deudaBruta[deudor]||{}).forEach(acreedor=>{
-      const parKey=[deudor,acreedor].sort().join('__');
-      if(procesados.has(parKey))return;
-      procesados.add(parKey);
-
-      const AdebeB=deudaBruta[deudor]&&deudaBruta[deudor][acreedor]||0;
-      const BdebeA=deudaBruta[acreedor]&&deudaBruta[acreedor][deudor]||0;
-      const neto=AdebeB-BdebeA;
-
-      if(neto>1){
-        // deudor le debe a acreedor
-        const key=`pago_${deudor}__${acreedor}`;
-        txFinales.push({de:deudor,a:acreedor,monto:Math.round(neto),key,pagado:!!pozoDecisions[key]});
-      } else if(neto<-1){
-        // acreedor le debe a deudor
-        const key=`pago_${acreedor}__${deudor}`;
-        txFinales.push({de:acreedor,a:deudor,monto:Math.round(-neto),key,pagado:!!pozoDecisions[key]});
-      }
-      // si neto=0, no hay deuda entre ellos
-    });
-  });
-
-  return txFinales;
+  return deudas;
 }
 
 function pTbl(){
@@ -828,6 +803,7 @@ function pTbl(){
       pendientes.map(d=>`<div class="mr">
         <div style="flex:1;font-size:13px">
           <strong>${d.de}</strong> le debe <strong style="color:#BA7517">$${d.monto.toLocaleString('es-AR')}</strong> a <strong>${d.a}</strong>
+          <div style="font-size:11px;color:#aaa">${d.partido}</div>
         </div>
         <button style="font-size:11px;padding:4px 10px;border-color:#3B6D11;color:#3B6D11" onclick="marcarPago('${d.key}',true)">✓ Pagado</button>
       </div>`).join('')
