@@ -742,55 +742,57 @@ window.sendChat=async function(){
 
 // TABLA
 function calcDeudas(hist){
-  // Paso 1: calcular balance neto de cada persona
-  // balance[p] > 0 significa que le deben plata
-  // balance[p] < 0 significa que debe plata
-  const balance={};
-  const names=partNames();
-  names.forEach(p=>balance[p]=0);
+  // Paso 1: calcular deudas brutas por partido
+  // deudaBruta[deudor][acreedor] = monto total acumulado
+  const deudaBruta={};
 
   hist.forEach(row=>{
     const monto=matchAmounts[row.m.id]||BPM_DEFAULT;
-    // Cada apostador pierde su monto
-    row.apostaron.forEach(p=>{ balance[p]-=monto; });
-    // Cada ganador recupera lo que ganó
-    row.winners.forEach(p=>{ balance[p]+=row.shares[p]; });
+    const perdedores=row.apostaron.filter(p=>!row.winners.includes(p));
+    if(!row.winners.length||!perdedores.length)return;
+
+    perdedores.forEach(deudor=>{
+      row.winners.forEach(ganador=>{
+        // Cada perdedor le debe a cada ganador proporcional a lo que ganó
+        const proporcion=row.shares[ganador]/row.pozo;
+        const montoDeuda=Math.round(monto*proporcion);
+        if(montoDeuda<=0)return;
+        if(!deudaBruta[deudor])deudaBruta[deudor]={};
+        if(!deudaBruta[deudor][ganador])deudaBruta[deudor][ganador]=0;
+        deudaBruta[deudor][ganador]+=montoDeuda;
+      });
+    });
   });
 
-  // Paso 2: generar transferencias mínimas con liquidación neta
-  // Separar deudores (balance negativo) y acreedores (balance positivo)
-  const deudores=Object.keys(balance)
-    .filter(p=>balance[p]<-1)
-    .map(p=>({p,v:Math.round(-balance[p])}))
-    .sort((a,b)=>b.v-a.v);
-  const acreedores=Object.keys(balance)
-    .filter(p=>balance[p]>1)
-    .map(p=>({p,v:Math.round(balance[p])}))
-    .sort((a,b)=>b.v-a.v);
+  // Paso 2: neteo entre pares
+  // Si A le debe a B y B le debe a A, cancelar la diferencia
+  const procesados=new Set();
+  const txFinales=[];
 
-  // Algoritmo greedy: el mayor deudor le paga al mayor acreedor
-  const tx=[];
-  let d=deudores.map(x=>({...x}));
-  let a=acreedores.map(x=>({...x}));
-  let i=0,j=0;
-  while(i<d.length&&j<a.length){
-    const monto=Math.min(d[i].v,a[j].v);
-    if(monto>1){
-      const key=`pago_${d[i].p}__${a[j].p}`;
-      tx.push({
-        de:d[i].p,
-        a:a[j].p,
-        monto,
-        key,
-        pagado:!!pozoDecisions[key]
-      });
-    }
-    d[i].v-=monto;
-    a[j].v-=monto;
-    if(d[i].v<=1)i++;
-    if(a[j].v<=1)j++;
-  }
-  return tx;
+  Object.keys(deudaBruta).forEach(deudor=>{
+    Object.keys(deudaBruta[deudor]||{}).forEach(acreedor=>{
+      const parKey=[deudor,acreedor].sort().join('__');
+      if(procesados.has(parKey))return;
+      procesados.add(parKey);
+
+      const AdebeB=deudaBruta[deudor]&&deudaBruta[deudor][acreedor]||0;
+      const BdebeA=deudaBruta[acreedor]&&deudaBruta[acreedor][deudor]||0;
+      const neto=AdebeB-BdebeA;
+
+      if(neto>1){
+        // deudor le debe a acreedor
+        const key=`pago_${deudor}__${acreedor}`;
+        txFinales.push({de:deudor,a:acreedor,monto:Math.round(neto),key,pagado:!!pozoDecisions[key]});
+      } else if(neto<-1){
+        // acreedor le debe a deudor
+        const key=`pago_${acreedor}__${deudor}`;
+        txFinales.push({de:acreedor,a:deudor,monto:Math.round(-neto),key,pagado:!!pozoDecisions[key]});
+      }
+      // si neto=0, no hay deuda entre ellos
+    });
+  });
+
+  return txFinales;
 }
 
 function pTbl(){
