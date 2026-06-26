@@ -150,19 +150,22 @@ const MX=[
 ];
 const GS=[...new Set(MX.map(m=>m.g))].sort();
 const APASS="prode2026admin";
+const BPM_DEFAULT=3000;
 
-// bets[player][mid] = { h, a, monto }  (monto = lo que apostó esa persona en ese partido)
+// bets[player][mid] = { h, a }
+// matchAmounts[mid] = monto definido por el admin para ese partido (default 1000)
+
 let sala=null;
 function dbPath(sub){return `salas/${sala}/${sub}`;}
 
-let me=null,isAdm=false,parts={},bets={},res={},pend={},chatMsgs={},matchComments={},openComments={},pozoDecisions={};
+let me=null,isAdm=false,parts={},bets={},res={},pend={},chatMsgs={},matchComments={},openComments={},pozoDecisions={},matchAmounts={};
 let lastReadChat=0,lastReadMatch={};
 
 function listenData(cb){
   onValue(ref(db,dbPath('')),snap=>{
     const d=snap.val()||{};
     parts=d.parts||{};bets=d.bets||{};res=d.res||{};
-    chatMsgs=d.chat||{};matchComments=d.matchComments||{};pozoDecisions=d.pozoDecisions||{};
+    chatMsgs=d.chat||{};matchComments=d.matchComments||{};pozoDecisions=d.pozoDecisions||{};matchAmounts=d.matchAmounts||{};
     cb();
   });
 }
@@ -171,74 +174,68 @@ const svP=()=>set(ref(db,dbPath('parts')),parts);
 const svB=()=>set(ref(db,dbPath('bets')),bets);
 const svR=()=>set(ref(db,dbPath('res')),res);
 const svD=()=>set(ref(db,dbPath('pozoDecisions')),pozoDecisions);
+const svA=()=>set(ref(db,dbPath('matchAmounts')),matchAmounts);
 
 function partNames(){return Object.keys(parts);}
 
-// Calcula pozo total de un partido = suma de montos apostados por todos
+// Pozo de un partido = monto del admin × quienes apostaron
 function pozoPartido(mid){
-  return partNames().reduce((sum,p)=>{
-    const b=bets[p]&&bets[p][mid];
-    return sum+(b&&b.monto?b.monto:0);
-  },0);
+  const monto=matchAmounts[mid]||BPM_DEFAULT;
+  const apostaron=partNames().filter(p=>bets[p]&&bets[p][mid]!=null);
+  return apostaron.length*monto;
 }
 
 function calcStats(){
   const names=partNames();
-  const sc={};names.forEach(p=>sc[p]={hits:0,earned:0,invested:0});
+  const sc={};names.forEach(p=>sc[p]={hits:0,nearHits:0,earned:0,invested:0});
   const hist=[];
-  let carryOver=0;
-  let acumSince=[];
 
   MX.forEach(m=>{
     const r=res[m.id];
-    const apostaron=names.filter(p=>bets[p]&&bets[p][m.id]&&bets[p][m.id].h!==undefined);
-    const pozoBase=apostaron.reduce((sum,p)=>sum+(bets[p][m.id].monto||0),0);
-    const pozoTotal=pozoBase+carryOver;
+    const apostaron=names.filter(p=>bets[p]&&bets[p][m.id]!=null);
+    const monto=matchAmounts[m.id]||BPM_DEFAULT;
+    const pozo=apostaron.length*monto;
 
-    // Sumar inversión total por persona
-    apostaron.forEach(p=>{sc[p].invested+=(bets[p][m.id].monto||0);});
+    apostaron.forEach(p=>{sc[p].invested+=monto;});
 
     if(!r)return;
 
-    const winners=apostaron.filter(p=>bets[p][m.id].h===r.h&&bets[p][m.id].a===r.a);
+    // 1. Buscar ganadores exactos
+    const exactos=apostaron.filter(p=>bets[p][m.id].h===r.h&&bets[p][m.id].a===r.a);
 
-    if(winners.length>0){
-      const decision=pozoDecisions[m.id];
+    let winners=[];
+    let tipoGanador='exacto';
 
-      if(decision==='acumular'){
-        hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,acum:false,acumDecision:true,carryOver});
-        carryOver=pozoTotal;
-        acumSince.push({mid:m.id,apostaron});
-      } else if(decision==='cobrar'||carryOver===0){
-        // Repartir proporcionalmente según monto apostado por cada ganador
-        // considerando todos los partidos acumulados + este
-        const partesAcum=[...acumSince,{mid:m.id,apostaron}];
-        const inversion={};
-        winners.forEach(p=>{
-          inversion[p]=partesAcum.reduce((sum,pa)=>{
-            const b=bets[p]&&bets[p][pa.mid];
-            return sum+(b&&b.monto?b.monto:0);
-          },0);
-        });
-        const totalInv=Object.values(inversion).reduce((a,b)=>a+b,0);
-        const shares={};
-        winners.forEach(p=>{
-          shares[p]=totalInv>0?Math.floor(pozoTotal*(inversion[p]/totalInv)):Math.floor(pozoTotal/winners.length);
-          sc[p].hits++;sc[p].earned+=shares[p];
-        });
-        hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,shares,acum:false,carryOver,inversion});
-        carryOver=0;acumSince=[];
-      } else {
-        // Pendiente de decisión admin (cuando hay carryOver)
-        hist.push({m,r,apostaron,winners,pozoBase,pozoTotal,acum:false,pendingDecision:true,carryOver});
-      }
+    if(exactos.length>0){
+      winners=exactos;
     } else {
-      hist.push({m,r,apostaron,winners:[],pozoBase,pozoTotal,acum:true,carryOver});
-      carryOver=pozoTotal;
-      acumSince.push({mid:m.id,apostaron});
+      // 2. Buscar el más aproximado (menor diferencia sumando |h-rh|+|a-ra|)
+      let minDiff=Infinity;
+      apostaron.forEach(p=>{
+        const b=bets[p][m.id];
+        const diff=Math.abs(b.h-r.h)+Math.abs(b.a-r.a);
+        if(diff<minDiff)minDiff=diff;
+      });
+      winners=apostaron.filter(p=>{
+        const b=bets[p][m.id];
+        return Math.abs(b.h-r.h)+Math.abs(b.a-r.a)===minDiff;
+      });
+      tipoGanador='aproximado';
     }
+
+    // Repartir pozo proporcionalmente según monto apostado
+    const totalInv=winners.reduce((sum,p)=>sum+monto,0);
+    const shares={};
+    winners.forEach(p=>{
+      shares[p]=Math.floor(pozo*(monto/totalInv));
+      if(tipoGanador==='exacto'){sc[p].hits++;} else {sc[p].nearHits++;}
+      sc[p].earned+=shares[p];
+    });
+
+    hist.push({m,r,apostaron,winners,pozo,shares,tipoGanador});
   });
-  return {sc,hist,carryOver};
+
+  return {sc,hist,carryOver:0};
 }
 
 function calcPot(){return calcStats().carryOver;}
@@ -394,6 +391,8 @@ function partList(){
 function pAdm(){
   const names=partNames();
   const {carryOver}=calcStats();
+  const GF=document.getElementById('admGF')?document.getElementById('admGF').value:'';
+  const proximos=MX.filter(m=>!GF||(m.g===GF));
   setHTML('PC',`<div class="card"><h2>Participantes (${names.length})</h2>
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:flex-end">
       <div><div style="font-size:11px;color:#666;margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Nombre</div>
@@ -407,6 +406,27 @@ function pAdm(){
     </div>
     <div id="pList">${partList()}</div>
   </div>
+  <div class="card">
+    <h2>💰 Monto por partido</h2>
+    <div style="font-size:12px;color:#888;margin-bottom:10px">Definí cuánto apuesta cada participante en cada partido. Por defecto es $3.000.</div>
+    <div style="margin-bottom:8px">
+      <select id="admGF" onchange="pAdm()" style="max-width:160px"><option value="">Todos los grupos</option>${GS.map(g=>`<option${GF===g?' selected':''}>${g}</option>`).join('')}</select>
+    </div>
+    ${proximos.map(m=>{
+      const monto=matchAmounts[m.id]||BPM_DEFAULT;
+      return`<div class="mr">
+        <div class="md">${m.d}</div>
+        <div class="mt">${m.h} <span style="color:#aaa">vs</span> ${m.a}</div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:12px;color:#888">$</span>
+          <input type="number" min="0" value="${monto}" style="width:80px;font-size:13px" id="ma${m.id}">
+          <button style="font-size:11px;padding:4px 9px" onclick="svMonto(${m.id})">Guardar</button>
+          <span class="msg" id="mm${m.id}"></span>
+        </div>
+      </div>`;
+    }).join('')}
+    ${proximos.length===0?'<div class="empty">No hay partidos pendientes.</div>':''}
+  </div>
   <div class="card"><div class="sg">
     <div class="sc"><div class="sl">Participantes</div><div class="sv">${names.length}</div></div>
     <div class="sc"><div class="sl">Resultados cargados</div><div class="sv">${Object.keys(res).length}/96</div></div>
@@ -414,7 +434,20 @@ function pAdm(){
     <div class="sc"><div class="sl">Pozo acumulado</div><div class="sv" style="font-size:15px;color:#BA7517">$${carryOver.toLocaleString('es-AR')}</div></div>
   </div>
   <div style="font-size:12px;color:#888;margin-top:4px">💡 Sala: <strong>${sala}</strong> · Compartí el PIN a cada participante en privado.</div>
+  </div>
+  <div class="card">
+    <h2>⚠️ Zona de administración</h2>
+    <div style="font-size:12px;color:#888;margin-bottom:10px">Estas acciones no se pueden deshacer.</div>
+    <button style="border-color:#c00;color:#c00;font-size:12px" onclick="resetPagos()">🗑 Restablecer todos los pagos marcados</button>
   </div>`);
+}
+
+window.svMonto=async function(mid){
+  const v=document.getElementById('ma'+mid);
+  if(!v||!v.value||parseInt(v.value)<=0){showMsg('mm'+mid,'Ingresá un monto válido.','er');return;}
+  matchAmounts[mid]=parseInt(v.value);
+  await svA();
+  showMsg('mm'+mid,'✓','ok');
 }
 
 window.addP=async function(){
@@ -473,21 +506,21 @@ window.rBL=function(){
       const pd=pend[pl][m.id];
       const vh=pd!==undefined?pd.h:(ex!==undefined?ex.h:'');
       const va=pd!==undefined?pd.a:(ex!==undefined?ex.a:'');
-      const vm=pd!==undefined?pd.monto:(ex&&ex.monto?ex.monto:'');
       const played=!!res[m.id];
+      const disabled=played&&!isAdm;
+      const vm=matchAmounts[m.id]||BPM_DEFAULT;
       html+=`<div class="mr">
         <div class="md">${m.d}</div>
-        <div class="mt">${m.h} <span style="color:#aaa">vs</span> ${m.a}</div>
+        <div class="mt">${m.h} <span style="color:#aaa">vs</span> ${m.a}
+          <span style="font-size:11px;color:#aaa;margin-left:4px">$${vm.toLocaleString('es-AR')}</span>
+        </div>
         <div class="si">
-          <input type="number" min="0" max="20" value="${vh}" placeholder="-" ${played?'disabled':''} style="width:40px" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'h',this.value)">
+          <input type="number" min="0" max="20" value="${vh}" placeholder="-" ${disabled?'disabled':''} style="width:40px" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'h',this.value)">
           <span class="sep">-</span>
-          <input type="number" min="0" max="20" value="${va}" placeholder="-" ${played?'disabled':''} style="width:40px" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'a',this.value)">
+          <input type="number" min="0" max="20" value="${va}" placeholder="-" ${disabled?'disabled':''} style="width:40px" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'a',this.value)">
         </div>
-        <div style="display:flex;align-items:center;gap:3px">
-          <span style="font-size:12px;color:#888">$</span>
-          <input type="number" min="0" value="${vm}" placeholder="monto" ${played?'disabled':''} class="monto-input" oninput="sp('${pl.replace(/'/g,"\\'")}',${m.id},'monto',this.value)">
-        </div>
-        ${played?`<span class="badge bd">Jugado</span>`:(ex&&ex.monto?`<span class="badge bo">OK $${ex.monto.toLocaleString('es-AR')}</span>`:`<span class="badge bp">—</span>`)}
+        ${isAdm&&ex?`<button style="font-size:11px;padding:3px 8px;color:#c00" onclick="borrarApuesta('${pl.replace(/'/g,"\\'")}',${m.id})">🗑</button>`:''}
+        ${played?`<span class="badge bd">Jugado</span>`:(ex?`<span class="badge bo">OK</span>`:`<span class="badge bp">—</span>`)}
       </div>`;
     });
     html+='</div>';
@@ -495,9 +528,15 @@ window.rBL=function(){
   setHTML('bL',html||'<div class="card"><div class="empty">No hay partidos.</div></div>');
 }
 
+window.borrarApuesta=async function(pl,mid){
+  if(!confirm('¿Borrar la apuesta de '+pl+' para este partido?'))return;
+  if(bets[pl])delete bets[pl][mid];
+  await svB();rBL();
+}
+
 window.sp=function(pl,mid,field,val){
   if(!pend[pl])pend[pl]={};
-  if(!pend[pl][mid])pend[pl][mid]={h:'',a:'',monto:''};
+  if(!pend[pl][mid])pend[pl][mid]={h:'',a:''};
   pend[pl][mid][field]=val;
 }
 
@@ -508,8 +547,8 @@ window.svBets=async function(){
   let n=0;
   Object.keys(pend[pl]||{}).forEach(mid=>{
     const b=pend[pl][mid];
-    if(b.h!==''&&b.a!==''&&b.h!==null&&b.a!==null&&b.monto!==''&&b.monto>0){
-      bets[pl][mid]={h:parseInt(b.h),a:parseInt(b.a),monto:parseInt(b.monto)};n++;
+    if(b.h!==''&&b.a!==''&&b.h!==null&&b.a!==null){
+      bets[pl][mid]={h:parseInt(b.h),a:parseInt(b.a)};n++;
     }
   });
   pend[pl]={};await svB();rBL();
@@ -560,7 +599,7 @@ window.rVL=function(){
           if(!b||b.h===undefined)return`<td style="text-align:center"><span class="score-display empty-bet">—</span></td>`;
           const isHit=r&&b.h===r.h&&b.a===r.a;
           const cls=r?(isHit?'hit':'miss'):'';
-          return`<td style="text-align:center"><span class="score-display ${cls}">${b.h}-${b.a}</span>${b.monto?`<div style="font-size:10px;color:#888">$${b.monto.toLocaleString('es-AR')}</div>`:''}`;
+          return`<td style="text-align:center"><span class="score-display ${cls}">${b.h}-${b.a}</span></td>`;
         }).join('')}
         <td style="text-align:center">${r?`<span class="score-display" style="background:#1a1a1a;color:#fff">${r.h}-${r.a}</span>`:`<span style="font-size:11px;color:#aaa">—</span>`}</td>
         <td><button class="toggle-comments" onclick="toggleCom(${m.id})">💬${unread>0?` <span class="unread">${unread}</span>`:mc.length?' '+mc.length:''}</button></td>
@@ -629,11 +668,16 @@ window.rRL=function(){
     html+=`<div class="card" style="margin-bottom:8px"><div class="gh">Grupo ${g}</div>`;
     fx.filter(m=>m.g===g).forEach(m=>{
       const r=res[m.id];
-      const pozo=pozoPartido(m.id);
+      const monto=matchAmounts[m.id]||BPM_DEFAULT;
+      const apostaron=partNames().filter(p=>bets[p]&&bets[p][m.id]!=null);
       html+=`<div class="mr">
         <div class="md">${m.d}</div>
         <div class="mt">${m.h} <span style="color:#aaa">vs</span> ${m.a}
-          <span style="font-size:11px;color:#aaa;margin-left:4px">(pozo $${pozo.toLocaleString('es-AR')})</span>
+          <span style="font-size:11px;color:#aaa;margin-left:4px">(${apostaron.length} · $${(apostaron.length*monto).toLocaleString('es-AR')})</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:3px;font-size:12px">
+          <span style="color:#888">$</span>
+          <input type="number" min="0" value="${monto}" style="width:70px;font-size:12px" id="am${m.id}">
         </div>
         <div class="si">
           <input type="number" min="0" max="20" value="${r?r.h:''}" placeholder="-" style="width:40px" id="rh${m.id}">
@@ -653,9 +697,11 @@ window.rRL=function(){
 window.svRes=async function(mid){
   const h=(document.getElementById('rh'+mid)||{}).value;
   const a=(document.getElementById('ra'+mid)||{}).value;
+  const am=(document.getElementById('am'+mid)||{}).value;
   if(h===''||a===''){alert('Ingresá los dos valores.');return;}
   res[mid]={h:parseInt(h),a:parseInt(a)};
-  await svR();showMsg('rm'+mid,'✓','ok');setTimeout(rRL,900);
+  if(am&&parseInt(am)>0)matchAmounts[mid]=parseInt(am);
+  await svR();await svA();showMsg('rm'+mid,'✓','ok');setTimeout(rRL,900);
 }
 window.dlRes=async function(mid){
   if(!confirm('¿Borrar el resultado?'))return;
@@ -695,12 +741,44 @@ window.sendChat=async function(){
 }
 
 // TABLA
+function calcDeudas(hist){
+  // Deudas simples por partido: cada perdedor le debe a cada ganador
+  // proporcional a lo que ganó cada ganador
+  const deudas=[];
+  hist.forEach(row=>{
+    const monto=matchAmounts[row.m.id]||BPM_DEFAULT;
+    const perdedores=row.apostaron.filter(p=>!row.winners.includes(p));
+    if(!row.winners.length||!perdedores.length)return;
+    perdedores.forEach(deudor=>{
+      row.winners.forEach(ganador=>{
+        const proporcion=row.shares[ganador]/row.pozo;
+        const montoDeuda=Math.round(monto*proporcion);
+        if(montoDeuda<=0)return;
+        const key=`pago_${row.m.id}_${deudor}__${ganador}`;
+        deudas.push({
+          mid:row.m.id,
+          partido:`${row.m.h} vs ${row.m.a}`,
+          de:deudor,
+          a:ganador,
+          monto:montoDeuda,
+          key,
+          pagado:!!pozoDecisions[key]
+        });
+      });
+    });
+  });
+  return deudas;
+}
+
 function pTbl(){
   const names=partNames();
   const played=Object.keys(res).length;
   const {sc,hist,carryOver}=calcStats();
   const srt=names.slice().sort((a,b)=>sc[b].earned-sc[a].earned||sc[b].hits-sc[a].hits);
   const th=Object.values(sc).reduce((s,v)=>s+v.hits,0);
+  const todasDeudas=calcDeudas(hist);
+  const pendientes=todasDeudas.filter(d=>!d.pagado);
+
   setHTML('PC',`<div class="sg">
     <div class="sc"><div class="sl">Pozo acumulado</div><div class="sv" style="font-size:15px;color:#BA7517">$${carryOver.toLocaleString('es-AR')}</div></div>
     <div class="sc"><div class="sl">Aciertos totales</div><div class="sv">${th}</div></div>
@@ -709,14 +787,27 @@ function pTbl(){
   </div>
   <div class="card"><h2>Clasificación</h2>
     ${!names.length||!played?'<div class="empty">Aún no hay resultados.</div>':`
-    <table><thead><tr><th>#</th><th>Participante</th><th>Aciertos</th><th>Invertido</th><th>Ganado</th></tr></thead><tbody>
+    <table><thead><tr><th>#</th><th>Participante</th><th>Exactos</th><th>Aprox.</th><th>Invertido</th><th>Ganado</th></tr></thead><tbody>
     ${srt.map((p,i)=>`<tr${!isAdm&&p===me?' class="hirow"':''}>
       <td style="font-weight:700;color:#aaa">${i===0&&sc[p].earned>0?'🏆':(i+1)}</td>
       <td>${p}${!isAdm&&p===me?' <span style="font-size:10px;color:#185FA5">(vos)</span>':''}</td>
       <td style="font-weight:600">${sc[p].hits}</td>
+      <td style="color:#888">${sc[p].nearHits}</td>
       <td style="color:#888">$${sc[p].invested.toLocaleString('es-AR')}</td>
       <td style="font-weight:${sc[p].earned>0?700:400}">$${sc[p].earned.toLocaleString('es-AR')}</td>
     </tr>`).join('')}</tbody></table>`}
+  </div>
+  <div class="card"><h2>💸 Deudas pendientes</h2>
+    ${!played?'<div class="empty">Aún no hay resultados.</div>':
+      pendientes.length===0?'<div class="empty">✓ Todas las deudas están saldadas.</div>':
+      pendientes.map(d=>`<div class="mr">
+        <div style="flex:1;font-size:13px">
+          <strong>${d.de}</strong> le debe <strong style="color:#BA7517">$${d.monto.toLocaleString('es-AR')}</strong> a <strong>${d.a}</strong>
+          <div style="font-size:11px;color:#aaa">${d.partido}</div>
+        </div>
+        <button style="font-size:11px;padding:4px 10px;border-color:#3B6D11;color:#3B6D11" onclick="marcarPago('${d.key}',true)">✓ Pagado</button>
+      </div>`).join('')
+    }
   </div>
   <div class="card"><h2>Historial de partidos</h2>
     ${!hist.length?'<div class="empty">Sin resultados aún.</div>':`
@@ -724,19 +815,32 @@ function pTbl(){
     ${hist.slice().reverse().map(row=>`<tr>
       <td style="font-size:11px">${row.m.h} vs ${row.m.a}</td>
       <td style="font-weight:700">${row.r.h}-${row.r.a}</td>
-      <td style="font-size:11px;font-weight:600">$${row.pozoTotal.toLocaleString('es-AR')}${row.carryOver>0?` <span style="font-size:10px;color:#633806">(+$${row.carryOver.toLocaleString('es-AR')})</span>`:''}</td>
-      <td style="font-size:11px;color:#888">${
-        row.acum?'<span class="badge ba">Nadie — acumula</span>':
-        row.acumDecision?`<span class="badge ba">Ganaron: ${row.winners.join(', ')} — sigue acumulando</span>`:
-        row.pendingDecision&&isAdm?`<span style="color:#3B6D11;font-weight:600">Ganaron: ${row.winners.join(', ')}</span><br>
-          <button onclick="decidirPozo(${row.m.id},'cobrar')" style="font-size:11px;padding:3px 8px;margin-top:4px;border-color:#3B6D11;color:#3B6D11">✓ Cobrar</button>
-          <button onclick="decidirPozo(${row.m.id},'acumular')" style="font-size:11px;padding:3px 8px;margin-top:4px;margin-left:4px;border-color:#633806;color:#633806">→ Seguir acumulando</button>`:
-        row.pendingDecision?`Ganaron: ${row.winners.join(', ')} — pendiente decisión admin`:
-        row.shares?row.winners.map(p=>`${p} $${row.shares[p].toLocaleString('es-AR')}`).join(', '):
-        row.winners.join(', ')
-      }</td>
+      <td style="font-size:11px;font-weight:600">$${row.pozo.toLocaleString('es-AR')}</td>
+      <td style="font-size:11px;color:#888">
+        ${row.winners.map(p=>`${p} $${row.shares[p].toLocaleString('es-AR')}`).join(', ')}
+        ${row.tipoGanador==='aproximado'?` <span class="badge bp">aprox.</span>`:''}
+      </td>
     </tr>`).join('')}</tbody></table>`}
   </div>`);
+}
+
+// INIT
+window.marcarPago=async function(key,pagado){
+  if(pagado){
+    pozoDecisions[key]=true;
+  } else {
+    delete pozoDecisions[key];
+  }
+  await svD();
+  pTbl();
+}
+
+window.resetPagos=async function(){
+  if(!confirm('¿Restablecer todos los pagos marcados?'))return;
+  Object.keys(pozoDecisions).forEach(k=>{if(k.startsWith('pago_'))delete pozoDecisions[k];});
+  await svD();
+  alert('✓ Pagos restablecidos.');
+  pTbl();
 }
 
 // INIT
