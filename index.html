@@ -147,7 +147,15 @@ const MX=[
   {id:67,d:"27/6 18:00",h:"Panamá",a:"Inglaterra",g:"L"},{id:68,d:"27/6 18:00",h:"Croacia",a:"Ghana",g:"L"},
   {id:69,d:"27/6 20:30",h:"Colombia",a:"Portugal",g:"K"},{id:70,d:"27/6 20:30",h:"RD Congo",a:"Uzbekistán",g:"K"},
   {id:71,d:"27/6 23:00",h:"Jordania",a:"Argentina",g:"J"},{id:72,d:"27/6 23:00",h:"Argelia",a:"Austria",g:"J"},
-  // 16avos de final
+  // Octavos de final
+  {id:89,d:"4/7 14:00",h:"Canadá",a:"Marruecos",g:"8vos"},
+  {id:90,d:"4/7 18:00",h:"Paraguay",a:"Francia",g:"8vos"},
+  {id:91,d:"5/7 17:00",h:"Brasil",a:"Noruega",g:"8vos"},
+  {id:92,d:"5/7 21:00",h:"México",a:"Inglaterra",g:"8vos"},
+  {id:93,d:"6/7 16:00",h:"Portugal",a:"España",g:"8vos"},
+  {id:94,d:"6/7 21:00",h:"Est. Unidos",a:"Bélgica",g:"8vos"},
+  {id:95,d:"7/7 13:00",h:"Argentina",a:"Egipto",g:"8vos"},
+  {id:96,d:"7/7 17:00",h:"Suiza",a:"Colombia",g:"8vos"},
   {id:73,d:"28/6 13:00",h:"Sudáfrica",a:"Canadá",g:"16vos"},
   {id:74,d:"29/6 14:30",h:"Alemania",a:"Paraguay",g:"16vos"},
   {id:75,d:"29/6 19:00",h:"Países Bajos",a:"Marruecos",g:"16vos"},
@@ -165,7 +173,7 @@ const MX=[
   {id:87,d:"4/7 03:30",h:"Colombia",a:"Ghana",g:"16vos"},
   {id:88,d:"3/7 20:00",h:"Australia",a:"Egipto",g:"16vos"},
 ];
-const GS=[...new Set(MX.map(m=>m.g))].filter(g=>g!=='16vos').sort().concat(['16vos']);
+const GS=[...new Set(MX.map(m=>m.g))].filter(g=>g!=='16vos'&&g!=='8vos').sort().concat(['16vos','8vos']);
 const APASS="prode2026admin";
 const BPM_DEFAULT=3000;
 
