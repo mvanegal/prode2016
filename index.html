@@ -156,6 +156,11 @@ const MX=[
   {id:94,d:"6/7 21:00",h:"Est. Unidos",a:"Bélgica",g:"8vos"},
   {id:95,d:"7/7 13:00",h:"Argentina",a:"Egipto",g:"8vos"},
   {id:96,d:"7/7 17:00",h:"Suiza",a:"Colombia",g:"8vos"},
+  // Cuartos de final
+  {id:97,d:"9/7 17:00",h:"Marruecos",a:"Francia",g:"4tos"},
+  {id:98,d:"10/7 16:00",h:"España",a:"Bélgica",g:"4tos"},
+  {id:99,d:"11/7 18:00",h:"Noruega",a:"Inglaterra",g:"4tos"},
+  {id:100,d:"11/7 21:00",h:"Argentina",a:"Suiza",g:"4tos"},
   {id:73,d:"28/6 13:00",h:"Sudáfrica",a:"Canadá",g:"16vos"},
   {id:74,d:"29/6 14:30",h:"Alemania",a:"Paraguay",g:"16vos"},
   {id:75,d:"29/6 19:00",h:"Países Bajos",a:"Marruecos",g:"16vos"},
@@ -173,7 +178,7 @@ const MX=[
   {id:87,d:"4/7 03:30",h:"Colombia",a:"Ghana",g:"16vos"},
   {id:88,d:"3/7 20:00",h:"Australia",a:"Egipto",g:"16vos"},
 ];
-const GS=[...new Set(MX.map(m=>m.g))].filter(g=>g!=='16vos'&&g!=='8vos').sort().concat(['16vos','8vos']);
+const GS=[...new Set(MX.map(m=>m.g))].filter(g=>g!=='16vos'&&g!=='8vos'&&g!=='4tos').sort().concat(['16vos','8vos','4tos']);
 const APASS="prode2026admin";
 const BPM_DEFAULT=3000;
 
