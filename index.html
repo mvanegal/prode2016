@@ -534,7 +534,14 @@ window.rBL=function(){
     if(s&&!m.h.toLowerCase().includes(s.toLowerCase())&&!m.a.toLowerCase().includes(s.toLowerCase()))return false;
     return true;
   });
-  const gs=[...new Set(fx.map(m=>m.g))].sort();
+  const GORDEN=["Semi","3ero","Final","4tos","8vos","16vos"];
+  const gs=[...new Set(fx.map(m=>m.g))].sort((a,b)=>{
+    const ia=GORDEN.indexOf(a),ib=GORDEN.indexOf(b);
+    if(ia>=0&&ib>=0)return ia-ib;
+    if(ia>=0)return -1;
+    if(ib>=0)return 1;
+    return a.localeCompare(b);
+  });
   let html='';
   gs.forEach(g=>{
     html+=`<div class="card" style="margin-bottom:8px"><div class="gh">Grupo ${g}</div>`;
@@ -614,7 +621,14 @@ window.rVL=function(){
     if(s&&!m.h.toLowerCase().includes(s.toLowerCase())&&!m.a.toLowerCase().includes(s.toLowerCase()))return false;
     return true;
   });
-  const gs=[...new Set(fx.map(m=>m.g))].sort();
+  const GORDEN=["Semi","3ero","Final","4tos","8vos","16vos"];
+  const gs=[...new Set(fx.map(m=>m.g))].sort((a,b)=>{
+    const ia=GORDEN.indexOf(a),ib=GORDEN.indexOf(b);
+    if(ia>=0&&ib>=0)return ia-ib;
+    if(ia>=0)return -1;
+    if(ib>=0)return 1;
+    return a.localeCompare(b);
+  });
   let html='';
   gs.forEach(g=>{
     html+=`<div class="card" style="margin-bottom:8px"><div class="gh">Grupo ${g}</div><div style="overflow-x:auto">
@@ -699,7 +713,14 @@ window.rRL=function(){
     if(s&&!m.h.toLowerCase().includes(s.toLowerCase())&&!m.a.toLowerCase().includes(s.toLowerCase()))return false;
     return true;
   });
-  const gs=[...new Set(fx.map(m=>m.g))].sort();
+  const GORDEN=["Semi","3ero","Final","4tos","8vos","16vos"];
+  const gs=[...new Set(fx.map(m=>m.g))].sort((a,b)=>{
+    const ia=GORDEN.indexOf(a),ib=GORDEN.indexOf(b);
+    if(ia>=0&&ib>=0)return ia-ib;
+    if(ia>=0)return -1;
+    if(ib>=0)return 1;
+    return a.localeCompare(b);
+  });
   let html='';
   gs.forEach(g=>{
     html+=`<div class="card" style="margin-bottom:8px"><div class="gh">Grupo ${g}</div>`;
